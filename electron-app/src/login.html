@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Georgia, serif; }
+    body {
+      width: 100vw; height: 100vh;
+      background: #FAF8F5;
+      display: flex; flex-direction: column;
+      border-radius: 12px; overflow: hidden;
+      border: 1px solid #DDD8D0;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      -webkit-app-region: no-drag;
+      user-select: none;
+    }
+    #titlebar {
+      -webkit-app-region: drag;
+      background: white;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #EDE9E3;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    #titlebar h1 { font-size: 17px; font-weight: 700; color: #2C2C2C; letter-spacing: -0.5px; }
+    #closeBtn {
+      -webkit-app-region: no-drag;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #FF5F57; border: none; cursor: pointer;
+    }
+    #form {
+      flex: 1; display: flex; flex-direction: column;
+      justify-content: center; gap: 14px;
+      padding: 28px 32px;
+    }
+    label { font-size: 11px; color: #888; letter-spacing: 0.5px; text-transform: uppercase; }
+    input[type="email"], input[type="password"] {
+      width: 100%; padding: 10px 14px;
+      background: white; border: 1px solid #DDD8D0;
+      border-radius: 10px; font-size: 14px;
+      font-family: Georgia, serif; color: #2C2C2C;
+      outline: none; margin-top: 4px;
+    }
+    input:focus { border-color: #4A6741; }
+    #submitBtn {
+      margin-top: 6px; width: 100%; padding: 11px;
+      background: #4A6741; color: white; border: none;
+      border-radius: 10px; font-size: 14px;
+      font-family: Georgia, serif; cursor: pointer;
+      transition: background 0.15s;
+    }
+    #submitBtn:hover   { background: #3a5233; }
+    #submitBtn:active  { background: #2e4228; }
+    #submitBtn:disabled { background: #A8C4A0; cursor: default; }
+    #message {
+      font-size: 12px; text-align: center; min-height: 16px;
+    }
+    #message.error   { color: #C0392B; }
+    #message.success { color: #4A6741; }
+    #toggleRow {
+      text-align: center; font-size: 12px; color: #999;
+    }
+    #toggleBtn {
+      background: none; border: none; cursor: pointer;
+      color: #4A6741; font-size: 12px;
+      font-family: Georgia, serif; text-decoration: underline;
+      padding: 0;
+    }
+    #toggleBtn:hover { color: #2e4228; }
+  </style>
+</head>
+<body>
+  <div id="titlebar">
+    <h1>Pistachio</h1>
+    <button id="closeBtn" onclick="window.close()"></button>
+  </div>
+  <div id="form">
+    <div>
+      <label>Email</label>
+      <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div>
+      <label>Password</label>
+      <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <div id="message"></div>
+    <button id="submitBtn">Sign in</button>
+    <div id="toggleRow">
+      <span id="toggleLabel">Don't have an account?</span>
+      <button id="toggleBtn">Create account</button>
+    </div>
+  </div>
+
+  <script>
+  const emailEl     = document.getElementById('email');
+  const passwordEl  = document.getElementById('password');
+  const submitBtn   = document.getElementById('submitBtn');
+  const messageEl   = document.getElementById('message');
+  const toggleBtn   = document.getElementById('toggleBtn');
+  const toggleLabel = document.getElementById('toggleLabel');
+
+  let isSignUp = false;
+
+  function setMessage(text, type = 'error') {
+    messageEl.textContent = text;
+    messageEl.className   = type;
+  }
+
+  function setMode(signup) {
+    isSignUp = signup;
+    submitBtn.textContent   = signup ? 'Create account' : 'Sign in';
+    toggleBtn.textContent   = signup ? 'Sign in instead' : 'Create account';
+    toggleLabel.textContent = signup ? 'Already have an account?' : "Don't have an account?";
+    setMessage('');
+    passwordEl.autocomplete = signup ? 'new-password' : 'current-password';
+  }
+
+  async function doSubmit() {
+    const email    = emailEl.value.trim();
+    const password = passwordEl.value;
+    if (!email || !password) { setMessage('Enter your email and password.'); return; }
+    if (isSignUp && password.length < 6) { setMessage('Password must be at least 6 characters.'); return; }
+
+    submitBtn.disabled    = true;
+    submitBtn.textContent = isSignUp ? 'Creating…' : 'Signing in…';
+    setMessage('');
+
+    try {
+      if (isSignUp) {
+        await window.electronAPI.signup(email, password);
+      } else {
+        await window.electronAPI.login(email, password);
+      }
+      // main.js closes this window and launches the app on success
+    } catch (err) {
+      setMessage(err.message || (isSignUp ? 'Signup failed.' : 'Login failed.'));
+      submitBtn.disabled    = false;
+      submitBtn.textContent = isSignUp ? 'Create account' : 'Sign in';
+    }
+  }
+
+  toggleBtn.onclick  = () => setMode(!isSignUp);
+  submitBtn.onclick  = doSubmit;
+  passwordEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSubmit(); });
+  emailEl.addEventListener('keydown',    (e) => { if (e.key === 'Enter') passwordEl.focus(); });
+  </script>
+</body>
+</html>

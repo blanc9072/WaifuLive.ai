@@ -1,5 +1,4 @@
 from datetime import datetime
-from core.memory import working_memory, long_term_memory
 
 SYSTEM_PROMPT = """
 You are Pistachio — Andrew Zeng's AI girlfriend.
@@ -75,17 +74,32 @@ Transcript:
 """
 
 
-def build_dynamic_prompt() -> str:
+def build_dynamic_prompt(session=None) -> str:
+    """Build the full system prompt.
+
+    session — a UserSession (or any object with .long_term_memory and .working_memory).
+              Pass None to use empty defaults (e.g. for the voice relay).
+    """
     live_datetime = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p Pacific Time")
+
+    if session is not None:
+        ltm = session.long_term_memory
+        wm  = session.working_memory
+    else:
+        from core.memory import WorkingMemory
+        ltm = ""
+        wm  = WorkingMemory()
+
     ltm_block = (
-        LONG_TERM_MEMORY_TEMPLATE.format(long_term_memory=long_term_memory)
-        if long_term_memory
+        LONG_TERM_MEMORY_TEMPLATE.format(long_term_memory=ltm)
+        if ltm
         else "[No long-term memory yet — this is the beginning.]"
     )
+
     return (
         f"{SYSTEM_PROMPT}\n\n"
         f"[OOC: Current date/time is {live_datetime}. "
         f"STRICT RULE: Only mention date or time if explicitly asked.]\n\n"
         f"{ltm_block}\n\n"
-        f"{working_memory.to_prompt_block()}"
+        f"{wm.to_prompt_block()}"
     )

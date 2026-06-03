@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Georgia, serif; }
+    body {
+      width: 100vw; height: 100vh;
+      background: #FAF8F5;
+      display: flex; flex-direction: column;
+      border-radius: 12px; overflow: hidden;
+      border: 1px solid #DDD8D0;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      -webkit-app-region: no-drag;
+      user-select: none;
+    }
+    #titlebar {
+      -webkit-app-region: drag;
+      background: white; flex-shrink: 0;
+      padding: 12px 16px 10px;
+      border-bottom: 1px solid #EDE9E3;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    #titlebar h1 { font-size: 17px; font-weight: 700; color: #2C2C2C; letter-spacing: -0.5px; }
+    #closeBtn {
+      -webkit-app-region: no-drag;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #FF5F57; border: none; cursor: pointer;
+    }
+    #content { flex: 1; overflow-y: auto; padding: 20px 24px; }
+    #content::-webkit-scrollbar { width: 4px; }
+    #content::-webkit-scrollbar-thumb { background: #DDD8D0; border-radius: 2px; }
+    section { margin-bottom: 24px; }
+    section h2 {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+      color: #888; margin-bottom: 10px;
+    }
+    .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .card {
+      padding: 9px 14px; border-radius: 20px;
+      border: 1.5px solid #DDD8D0; background: white;
+      font-size: 13px; color: #444;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .card:hover  { border-color: #4A6741; color: #2C2C2C; }
+    .card.selected { border-color: #4A6741; background: #EDF5EB; color: #2C4A23; font-weight: 600; }
+    .empty { font-size: 12px; color: #BBB; font-style: italic; }
+    #footer {
+      background: white; flex-shrink: 0;
+      padding: 12px 24px;
+      border-top: 1px solid #EDE9E3;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    #logoutBtn {
+      font-size: 12px; color: #999; background: none;
+      border: none; cursor: pointer; font-family: Georgia, serif;
+      text-decoration: underline;
+    }
+    #logoutBtn:hover { color: #C0392B; }
+    #saveBtn {
+      padding: 9px 24px; background: #4A6741; color: white;
+      border: none; border-radius: 20px; font-size: 13px;
+      font-family: Georgia, serif; cursor: pointer; transition: background 0.15s;
+    }
+    #saveBtn:hover    { background: #3a5233; }
+    #saveBtn:disabled { background: #A8C4A0; cursor: default; }
+    #status { font-size: 12px; color: #4A6741; min-width: 80px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="titlebar">
+    <h1>Settings</h1>
+    <button id="closeBtn"></button>
+  </div>
+  <div id="content">
+    <section>
+      <h2>Persona</h2>
+      <div class="grid" id="personaGrid"><span class="empty">Loading…</span></div>
+    </section>
+    <section>
+      <h2>Voice</h2>
+      <div class="grid" id="voiceGrid"><span class="empty">Loading…</span></div>
+    </section>
+    <section>
+      <h2>Avatar</h2>
+      <div class="grid" id="avatarGrid"><span class="empty">Loading…</span></div>
+    </section>
+  </div>
+  <div id="footer">
+    <button id="logoutBtn">Sign out</button>
+    <span id="status"></span>
+    <button id="saveBtn">Save</button>
+  </div>
+
+  <script>
+  let selected = { personaId: null, voiceId: null, avatarId: null };
+
+  function makeGrid(items, gridEl, key) {
+    gridEl.innerHTML = '';
+    if (!items.length) {
+      gridEl.innerHTML = '<span class="empty">No options yet.</span>';
+      return;
+    }
+    items.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'card' + (selected[key] === item.id ? ' selected' : '');
+      card.textContent = item.name;
+      card.dataset.id  = item.id;
+      card.onclick = () => {
+        gridEl.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selected[key] = item.id;
+      };
+      gridEl.appendChild(card);
+    });
+  }
+
+  async function load() {
+    try {
+      const { personas, voices, avatars, profile } =
+        await window.electronAPI.loadSettings();
+
+      // Pre-select from saved profile (fall back to is_default)
+      selected.personaId = profile.persona_id || (personas.find(p => p.is_default)?.id ?? null);
+      selected.voiceId   = profile.voice_id   || (voices.find(v => v.is_default)?.id   ?? null);
+      selected.avatarId  = profile.avatar_id  || (avatars.find(a => a.is_default)?.id  ?? null);
+
+      makeGrid(personas, document.getElementById('personaGrid'), 'personaId');
+      makeGrid(voices,   document.getElementById('voiceGrid'),   'voiceId');
+      makeGrid(avatars,  document.getElementById('avatarGrid'),  'avatarId');
+    } catch (err) {
+      document.getElementById('content').innerHTML =
+        `<p style="color:#C0392B;font-size:13px;padding:20px">${err.message}</p>`;
+    }
+  }
+
+  document.getElementById('saveBtn').onclick = async () => {
+    const btn    = document.getElementById('saveBtn');
+    const status = document.getElementById('status');
+    btn.disabled = true;
+    status.textContent = '';
+    try {
+      await window.electronAPI.saveSettings({
+        personaId: selected.personaId,
+        voiceId:   selected.voiceId,
+        avatarId:  selected.avatarId,
+      });
+      status.textContent = 'Saved ✓';
+      setTimeout(() => { status.textContent = ''; }, 2000);
+    } catch (err) {
+      status.textContent = 'Error saving.';
+      status.style.color = '#C0392B';
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  document.getElementById('logoutBtn').onclick = async () => {
+    await window.electronAPI.logout();
+  };
+
+  document.getElementById('closeBtn').onclick = () => {
+    window.electronAPI.closeSettings();
+  };
+
+  load();
+  </script>
+</body>
+</html>

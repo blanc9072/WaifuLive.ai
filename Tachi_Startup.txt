@@ -1,26 +1,32 @@
-    Terminal 1 — FastAPI backend:
+Terminal 1 — Python backend (FastAPI + Gemini Live relay, both in one process):
 
-cd ~/Documents/Real\ Waifu\ copy
-source .venv/bin/activate
-python main.py
+    cd ~/Documents/Real\ Waifu\ copy
+    source .venv/bin/activate
+    python main.py
 
-    Terminal 2 — Live2D Flutter static server:
+    Serves:
+      http://localhost:8000  — chat / memory / sleep API
+      ws://localhost:8765    — voice WebSocket relay (Gemini Live)
 
-cd ~/Documents/Real\ Waifu\ copy/flutter_app/web
-python3 -m http.server 8080
 
-    Terminal 3 — Gemini Live relay:
+Terminal 2 — Electron desktop app:
 
-cd ~/Documents/Real\ Waifu\ copy
-source .venv/bin/activate
-python live_server.py
+    cd ~/Documents/Real\ Waifu\ copy/electron-app
+    npm start
 
-    Terminal 4 — Flutter:
+    On first launch shows the login screen.
+    After login: Live2D model window + chat window appear.
+    Hotkeys:
+      Cmd+Shift+P  toggle chat window
+      Cmd+Shift+O  toggle model visibility
+      Cmd+Shift+M  toggle mic (voice mode)
 
-cd ~/Documents/Real\ Waifu\ copy/flutter_app
-flutter run -d chrome
 
-    Terminal 5 - Electron:
+Optional — Flutter web client (browser-based alternative UI):
 
-cd ~/Documents/Real\ Waifu\ copy/electron-app
-npm start
+    cd ~/Documents/Real\ Waifu\ copy/flutter_app
+    flutter run -d chrome
+
+    Needs the static asset server if the Live2D model doesn't load:
+      cd ~/Documents/Real\ Waifu\ copy/flutter_app/web
+      python3 -m http.server 8080

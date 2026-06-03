@@ -21,7 +21,7 @@
       border-bottom: 1px solid #EDE9E3; flex-shrink: 0;
     }
     #titlebar h1 { font-size: 18px; font-weight: 700; color: #2C2C2C; letter-spacing: -0.5px; }
-    #micBtn {
+    .titlebar-btn {
       -webkit-app-region: no-drag;
       width: 36px; height: 36px; border-radius: 50%;
       border: 1px solid #DDD8D0; background: #F0EDE8;
@@ -101,7 +101,10 @@
 <body>
   <div id="titlebar">
     <h1>Pistachio</h1>
-    <button id="micBtn" title="Cmd+Shift+M">🎙</button>
+    <div style="display:flex;gap:6px;-webkit-app-region:no-drag">
+      <button id="settingsBtn" class="titlebar-btn" title="Settings">⚙</button>
+      <button id="micBtn"      class="titlebar-btn" title="Cmd+Shift+M">🎙</button>
+    </div>
   </div>
   <div id="chips">
     <span class="chip" id="chipMood">😶 chill</span>
@@ -120,9 +123,12 @@
   </div>
 
   <script>
-  const API_BASE = 'http://localhost:8000';
-  const USERNAME = 'blanc2';
-  const LIVE_WS  = 'ws://localhost:8765';
+  const LIVE_WS = 'ws://localhost:8765';
+
+  // Display name comes from the verified session, not hardcoded.
+  // Falls back to 'user' if the IPC call fails for any reason.
+  let USERNAME = 'user';
+  window.electronAPI.getUser().then(u => { if (u?.email) USERNAME = u.email.split('@')[0]; });
 
   const messagesEl   = document.getElementById('messages');
   const inputEl      = document.getElementById('input');
@@ -214,16 +220,12 @@
     }
 
     try {
-      const res  = await fetch(`${API_BASE}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username:   USERNAME,
-          message:    text,
-          screenshot: screenshotB64,
-        }),
+      // Routed through main.js — token is injected there, never in this renderer.
+      const data = await window.electronAPI.sendChat({
+        username:   USERNAME,
+        message:    text,
+        screenshot: screenshotB64,
       });
-      const data = await res.json();
       setTyping(false);
       addBubble(data.reply, false);
 
@@ -239,7 +241,8 @@
     }
   }
 
-  document.getElementById('sendBtn').onclick = () => sendMessage(inputEl.value);
+  document.getElementById('sendBtn').onclick    = () => sendMessage(inputEl.value);
+  document.getElementById('settingsBtn').onclick = () => window.electronAPI.openSettings();
   inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(inputEl.value); });
 
   // ---------------------------------------------------------------------------
