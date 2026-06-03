@@ -1,0 +1,36 @@
+declare namespace Live2DCubismCore {
+  type csmLogFunction = any;
+  type csmParameterType = any;
+  type Moc = any;
+  type Model = any;
+  const Moc: any;
+  const Model: any;
+  const Memory: any;
+  const Utils: any;
+  const Logging: any;
+  const Version: any;
+  const ColorBlendType_Normal: any;
+  const ColorBlendType_Add: any;
+  const ColorBlendType_AddGlow: any;
+  const ColorBlendType_Darken: any;
+  const ColorBlendType_Multiply: any;
+  const ColorBlendType_ColorBurn: any;
+  const ColorBlendType_LinearBurn: any;
+  const ColorBlendType_Lighten: any;
+  const ColorBlendType_Screen: any;
+  const ColorBlendType_ColorDodge: any;
+  const ColorBlendType_Overlay: any;
+  const ColorBlendType_SoftLight: any;
+  const ColorBlendType_HardLight: any;
+  const ColorBlendType_LinearLight: any;
+  const ColorBlendType_Hue: any;
+  const ColorBlendType_Color: any;
+  const ColorBlendType_AddCompatible: any;
+  const ColorBlendType_MultiplyCompatible: any;
+  const AlphaBlendType_Over: any;
+  const AlphaBlendType_Atop: any;
+  const AlphaBlendType_Out: any;
+  const AlphaBlendType_ConjointOver: any;
+  const AlphaBlendType_DisjointOver: any;
+}
+declare const Live2DCubismCore: any;

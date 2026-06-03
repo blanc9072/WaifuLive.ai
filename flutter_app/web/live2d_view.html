@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pistachio Live2D</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: transparent; overflow: hidden; width: 100vw; height: 100vh; }
+    canvas { position: absolute; top: 0; left: 0; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
+
+  <script>
+  // ---------------------------------------------------------------------------
+  // Config
+  // ---------------------------------------------------------------------------
+  const MODEL_PATH = 'live2d/Nicole/Nicole.model3.json';
+
+  // Expressions available (Love Hand Posture excluded — broken)
+  // cry, shyness, Love eye, Money eye, black face
+  // Y Hand Posture, Money Hand Posture, Phone Hand Posture, Milk Tea, sitting position
+
+  // Mood → expression pool mapping
+  // null = base pose (no expression)
+  const MOOD_POOLS = {
+    'chill':    [null, 'Milk Tea', null, 'sitting position', 'Milk Tea'],
+    'happy':    ['Y Hand Posture', null, 'shyness', 'Y Hand Posture', 'Milk Tea'],
+    'excited':  ['Y Hand Posture', 'Money eye', 'Y Hand Posture', null],
+    'loving':   ['Love eye', 'shyness', null, 'shyness'],
+    'romantic': ['Love eye', 'shyness', 'Love eye', null, 'Milk Tea'],
+    'sad':      ['cry', null, 'cry'],
+    'annoyed':  ['black face', null, 'black face'],
+    'jealous':  ['black face', 'black face', null],
+    'playful':  ['Y Hand Posture', 'shyness', null, 'Money eye', 'sitting position'],
+    'curious':  [null, 'shyness', null, 'sitting position'],
+    'flirty':   ['Love eye', 'shyness', 'Love eye', null, 'sitting position', 'Milk Tea'],
+    'default':  [null, null, 'Milk Tea', null, 'shyness', null, 'sitting position'],
+  };
+
+  // Regex patterns to map any mood string → pool key
+  function moodToPool(mood) {
+    const m = mood.toLowerCase();
+    if (/jealous|possessiv|bitter|envious/.test(m))              return 'jealous';
+    if (/annoy|angry|frustrat|mad|sulk|irritat/.test(m))        return 'annoyed';
+    if (/sad|depress|lonely|miss|hurt|melanchol|griev/.test(m)) return 'sad';
+    if (/flirt|teas|coy|suggestiv/.test(m))                     return 'flirty';
+    if (/romantic|tender|adoring|fond|affection/.test(m))       return 'romantic';
+    if (/love|warm|cherish|soft|caring/.test(m))                return 'loving';
+    if (/excit|hype|thrill|enthusias|energetic/.test(m))        return 'excited';
+    if (/playful|mischiev|silly|goofy|fun/.test(m))             return 'playful';
+    if (/happy|joy|cheer|glad|content|gleeful/.test(m))         return 'happy';
+    if (/curious|interest|wonder|intrigu/.test(m))              return 'curious';
+    if (/chill|relax|calm|peaceful|neutral|okay|fine/.test(m))  return 'chill';
+    return 'default';
+  }
+
+  // ---------------------------------------------------------------------------
+  // PixiJS app
+  // ---------------------------------------------------------------------------
+  const app = new PIXI.Application({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    backgroundAlpha: 0,
+    antialias: true,
+    autoDensity: true,
+    resolution: window.devicePixelRatio || 1,
+  });
+  document.body.appendChild(app.view);
+
+  window.addEventListener('resize', () => {
+    app.renderer.resize(window.innerWidth, window.innerHeight);
+    if (window._live2dModel) positionModel(window._live2dModel);
+  });
+
+  function positionModel(model) {
+    const scale = (window.innerHeight * 0.9) / model.height;
+    model.scale.set(scale);
+    model.x = window.innerWidth / 2;
+    model.y = window.innerHeight * 1.0;
+    model.anchor.set(0.5, 1.0);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Expression system
+  // ---------------------------------------------------------------------------
+  let currentMoodKey = 'default';
+  let moodPoolIndex  = 0;
+  let cycleTimer     = null;
+
+  function applyExpression(name) {
+    if (!window._live2dModel) return;
+    window._live2dModel.expression(name || '');
+  }
+
+  function classifyEmotion(text) {
+    const t = text.toLowerCase();
+    if (/miss|lonely|sad|cry|hurt|pain|tear|sobbing/.test(t))              return 'cry';
+    if (/annoy|jealous|mad|angry|sulk|hmph/.test(t))                       return 'black face';
+    if (/shy|embarrass|blush|flustered/.test(t))                           return 'shyness';
+    if (/love you|adore|cherish|only you|kiss|hug|darling|my love|baby|sweetheart/.test(t)) return 'Love eye';
+    if (/excited|yay|amazing|wow|happy|glad|fun/.test(t))                  return 'Y Hand Posture';
+    if (/money|rich|expensive|cost|pay|afford/.test(t))                    return 'Money Hand Posture';
+    if (/phone|text|call|message|discord/.test(t))                         return 'Phone Hand Posture';
+    if (/chill|relax|boba|milk tea/.test(t))                               return 'Milk Tea';
+    if (/sit|tired|rest|couch|bed/.test(t))                                return 'sitting position';
+    return null;
+  }
+
+  function startMoodCycling() {
+    if (cycleTimer) clearInterval(cycleTimer);
+    cycleTimer = setInterval(() => {
+      const pool = MOOD_POOLS[currentMoodKey] || MOOD_POOLS['default'];
+      applyExpression(pool[moodPoolIndex % pool.length]);
+      moodPoolIndex++;
+    }, 10000 + Math.random() * 8000);
+  }
+
+  function setMood(rawMood) {
+    const key = moodToPool(rawMood);
+    console.log(`[Mood] "${rawMood}" → pool: ${key}`);
+    currentMoodKey = key;
+    moodPoolIndex  = 0;
+    startMoodCycling();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Voice state
+  // ---------------------------------------------------------------------------
+  let ws           = null;
+  let audioCtx     = null;
+  let mediaStream  = null;
+  let processor    = null;
+  let mouthValue   = 0;
+  let audioQueue   = [];
+  let isPlaying    = false;
+  let nextPlayTime = 0;
+
+  // Transcript accumulator
+  let transcriptBuffer = '';
+  let transcriptTimer  = null;
+
+  function accumulateTranscript(text) {
+    transcriptBuffer += (transcriptBuffer ? ' ' : '') + text;
+    clearTimeout(transcriptTimer);
+    transcriptTimer = setTimeout(() => {
+      if (!transcriptBuffer.trim()) return;
+      applyExpression(classifyEmotion(transcriptBuffer));
+      window.parent.postMessage({ type: 'transcript', text: transcriptBuffer.trim() }, '*');
+      transcriptBuffer = '';
+    }, 800);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Audio playback
+  // ---------------------------------------------------------------------------
+  function ensureAudioCtx() {
+    if (!audioCtx) audioCtx = new AudioContext({ sampleRate: 24000 });
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function enqueueAudio(arrayBuffer) {
+    const ctx    = ensureAudioCtx();
+    const int16  = new Int16Array(arrayBuffer);
+    const f32    = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 32768;
+    const buf = ctx.createBuffer(1, f32.length, 24000);
+    buf.copyToChannel(f32, 0);
+    audioQueue.push(buf);
+    if (!isPlaying) playNext();
+  }
+
+  function playNext() {
+    if (!audioQueue.length) { isPlaying = false; return; }
+    isPlaying = true;
+    const ctx    = ensureAudioCtx();
+    const buf    = audioQueue.shift();
+    const source = ctx.createBufferSource();
+    source.buffer = buf;
+
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    analyser.connect(ctx.destination);
+
+    const startAt = Math.max(ctx.currentTime, nextPlayTime);
+    source.start(startAt);
+    nextPlayTime = startAt + buf.duration;
+
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    const lip  = setInterval(() => {
+      analyser.getByteFrequencyData(data);
+      mouthValue = Math.min(1, data.reduce((a, b) => a + b, 0) / data.length / 60);
+    }, 30);
+    source.addEventListener('ended', () => { clearInterval(lip); playNext(); });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mic capture
+  // ---------------------------------------------------------------------------
+  async function startMic() {
+    const ctx   = ensureAudioCtx();
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const src   = ctx.createMediaStreamSource(mediaStream);
+    processor   = ctx.createScriptProcessor(4096, 1, 1);
+
+    processor.onaudioprocess = (e) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const f32  = e.inputBuffer.getChannelData(0);
+      const i16  = new Int16Array(f32.length);
+      for (let i = 0; i < f32.length; i++) i16[i] = Math.max(-32768, Math.min(32767, f32[i] * 32768));
+      ws.send(i16.buffer);
+    };
+
+    src.connect(processor);
+    processor.connect(ctx.destination);
+    console.log('[Voice] Mic started.');
+  }
+
+  function stopMic() {
+    if (processor)   { processor.disconnect(); processor = null; }
+    if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+    console.log('[Voice] Mic stopped.');
+  }
+
+  // ---------------------------------------------------------------------------
+  // WebSocket
+  // ---------------------------------------------------------------------------
+  function connectVoice() {
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+    ws = new WebSocket('ws://localhost:8765');
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen    = async () => { console.log('[Voice] Connected.'); await startMic(); };
+    ws.onclose   = ()       => { console.log('[Voice] Disconnected.'); stopMic(); };
+    ws.onerror   = (e)      => console.error('[Voice] Error:', e);
+    ws.onmessage = (event)  => {
+      if (event.data instanceof ArrayBuffer) {
+        enqueueAudio(event.data);
+      } else {
+        try {
+          const m = JSON.parse(event.data);
+          if (m.type === 'transcript')       accumulateTranscript(m.text);
+          if (m.type === 'input_transcript') window.parent.postMessage({ type: 'input_transcript', text: m.text }, '*');
+        } catch (_) {}
+      }
+    };
+  }
+
+  function disconnectVoice() {
+    stopMic();
+    if (ws) { ws.close(); ws = null; }
+    audioQueue   = [];
+    isPlaying    = false;
+    nextPlayTime = 0;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Flutter bridge
+  // ---------------------------------------------------------------------------
+  window.addEventListener('message', (event) => {
+    const m = event.data;
+    if (!m || !m.type) return;
+    switch (m.type) {
+      case 'mic_on':     connectVoice();                          break;
+      case 'mic_off':    stopMic();                               break;
+      case 'send_reply': applyExpression(classifyEmotion(m.text)); break;
+      case 'set_mood':   setMood(m.mood);                         break;
+      case 'send_text':
+        if (ws && ws.readyState === WebSocket.OPEN)
+          ws.send(JSON.stringify({ type: 'text', text: m.text }));
+        break;
+    }
+  });
+
+  document.addEventListener('click', () => {
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Load model
+  // ---------------------------------------------------------------------------
+  async function loadModel() {
+    try {
+      const model = await PIXI.live2d.Live2DModel.from(MODEL_PATH, { autoInteract: false });
+      app.stage.addChild(model);
+      positionModel(model);
+      window._live2dModel = model;
+
+      app.ticker.add(() => {
+        const t    = Date.now();
+        const core = model.internalModel.coreModel;
+        core.setParameterValueById('ParamBreath',     Math.sin(t / 1500) * 0.5);
+        core.setParameterValueById('ParamAngleY',     Math.sin(t / 4000) * 8);
+        core.setParameterValueById('ParamBodyAngleX', Math.sin(t / 5000) * 4);
+        mouthValue *= 0.85;
+        core.setParameterValueById('ParamMouthOpenY', mouthValue);
+      });
+
+      startMoodCycling();
+      console.log('Model loaded.');
+    } catch (err) {
+      console.error('Model load error:', err);
+    }
+  }
+
+  window.onPistachioReply = () => { mouthValue = 0.8; };
+
+  loadModel();
+  </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+    "Version": 3,
+    "FileReferences": {
+        "Moc": "Nicole.moc3",
+        "Textures": [
+            "Nicole.8192/texture_00.png",
+            "Nicole.8192/texture_01.png"
+        ],
+        "Physics": "Nicole.physics3.json",
+        "DisplayInfo": "Nicole.cdi3.json",
+        "Expressions": [
+            {"Name": "cry",                "File": "cry.exp3.json"},
+            {"Name": "shyness",            "File": "shyness.exp3.json"},
+            {"Name": "Love eye",           "File": "Love eye.exp3.json"},
+            {"Name": "Love Hand Posture",  "File": "Love Hand Posture.exp3.json"},
+            {"Name": "Money eye",          "File": "Money eye.exp3.json"},
+            {"Name": "Money Hand Posture", "File": "Money Hand Posture.exp3.json"},
+            {"Name": "Phone Hand Posture", "File": "Phone Hand Posture.exp3.json"},
+            {"Name": "Y Hand Posture",     "File": "Y Hand Posture.exp3.json"},
+            {"Name": "black face",         "File": "black face.exp3.json"},
+            {"Name": "Milk Tea",           "File": "Milk Tea.exp3.json"},
+            {"Name": "sitting position",   "File": "sitting position.exp3.json"}
+        ]
+    },
+    "Groups": [
+        {"Target": "Parameter", "Name": "LipSync", "Ids": []},
+        {"Target": "Parameter", "Name": "EyeBlink", "Ids": []}
+    ]
+}

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      background: transparent !important;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      -webkit-app-region: no-drag;
+    }
+    canvas { position: absolute; top: 0; left: 0; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
+
+  <script>
+  const MODEL_PATH = '../../assets/live2d/Nicole/Nicole.model3.json';
+
+  const MOOD_POOLS = {
+    'chill':    [null, 'Milk Tea', null, 'sitting position'],
+    'happy':    ['Y Hand Posture', null, 'shyness', 'Y Hand Posture'],
+    'excited':  ['Y Hand Posture', 'Money eye', 'Y Hand Posture', null],
+    'loving':   ['Love eye', 'shyness', null, 'Love eye'],
+    'romantic': ['Love eye', 'shyness', 'Love eye', null],
+    'sad':      ['cry', null, 'cry'],
+    'annoyed':  ['black face', null, 'black face'],
+    'jealous':  ['black face', 'black face', null],
+    'playful':  ['Y Hand Posture', 'shyness', null, 'Money eye'],
+    'curious':  [null, 'shyness', null, 'sitting position'],
+    'flirty':   ['Love eye', 'shyness', 'Love eye', null],
+    'default':  [null, null, 'Milk Tea', null, 'shyness', null],
+  };
+
+  function moodToPool(mood) {
+    const m = mood.toLowerCase();
+    if (/jealous|possessiv|bitter|envious/.test(m))              return 'jealous';
+    if (/annoy|angry|frustrat|mad|sulk|irritat/.test(m))        return 'annoyed';
+    if (/sad|depress|lonely|miss|hurt|melanchol/.test(m))       return 'sad';
+    if (/flirt|teas|coy|suggestiv/.test(m))                     return 'flirty';
+    if (/romantic|tender|adoring|fond|affection/.test(m))       return 'romantic';
+    if (/love|warm|cherish|soft|caring/.test(m))                return 'loving';
+    if (/excit|hype|thrill|enthusias|energetic/.test(m))        return 'excited';
+    if (/playful|mischiev|silly|goofy|fun/.test(m))             return 'playful';
+    if (/happy|joy|cheer|glad|content/.test(m))                 return 'happy';
+    if (/curious|interest|wonder|intrigu/.test(m))              return 'curious';
+    if (/chill|relax|calm|peaceful|neutral/.test(m))            return 'chill';
+    return 'default';
+  }
+
+  // ---------------------------------------------------------------------------
+  // PixiJS
+  // ---------------------------------------------------------------------------
+  const app = new PIXI.Application({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    backgroundAlpha: 0,
+    antialias: true,
+    autoDensity: true,
+    resolution: window.devicePixelRatio || 1,
+  });
+  document.body.appendChild(app.view);
+
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let mouthValue     = 0;
+  let currentMoodKey = 'default';
+  let moodPoolIndex  = 0;
+  let cycleTimer     = null;
+
+  function applyExpression(name) {
+    if (!window._live2dModel) return;
+    window._live2dModel.expression(name || '');
+  }
+
+  function startMoodCycling() {
+    if (cycleTimer) clearInterval(cycleTimer);
+    cycleTimer = setInterval(() => {
+      const pool = MOOD_POOLS[currentMoodKey] || MOOD_POOLS['default'];
+      applyExpression(pool[moodPoolIndex % pool.length]);
+      moodPoolIndex++;
+    }, 10000 + Math.random() * 8000);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mouse state machine
+  // ---------------------------------------------------------------------------
+  let isCapturing = false;
+  let exitTimer   = null;
+  let isDragging  = false;
+  let didDrag     = false;
+  let dragAnchorX = 0;
+  let dragAnchorY = 0;
+  const DRAG_PX   = 6;
+
+  // hitTest alone is unreliable if the model has no named hit areas.
+  // Fall back to the model's pixel bounding box so hover/click always work.
+  function isOverModel(x, y) {
+    if (!window._live2dModel) return false;
+    if (window._live2dModel.hitTest(x, y).length > 0) return true;
+    const b = window._live2dModel.getBounds();
+    return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;
+  }
+
+  function setCursor(style) {
+    document.body.style.cursor = style;
+  }
+
+  function enterCapture() {
+    clearTimeout(exitTimer);
+    if (isCapturing) return;
+    isCapturing = true;
+    window.electronAPI.setIgnoreMouse(false);
+    setCursor('grab');
+  }
+
+  function schedulePassThrough() {
+    if (isDragging) return;
+    clearTimeout(exitTimer);
+    exitTimer = setTimeout(() => {
+      isCapturing = false;
+      window.electronAPI.setIgnoreMouse(true);
+      setCursor('default');
+    }, 200);
+  }
+
+  // IPC polling — fires every 16ms regardless of ignoreMouseEvents state
+  window.electronAPI.onMouseMove((pos) => {
+    mouseX = pos.x;
+    mouseY = pos.y;
+    if (isOverModel(pos.x, pos.y)) enterCapture();
+    else schedulePassThrough();
+  });
+
+  // DOM events — only fire when isCapturing=true
+  window.addEventListener('mousemove', (e) => {
+    if (!isCapturing) return;
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+
+    if (isDragging) {
+      if (!didDrag && Math.hypot(e.screenX - dragAnchorX, e.screenY - dragAnchorY) > DRAG_PX) {
+        didDrag = true;
+      }
+      return;
+    }
+
+    if (isOverModel(e.clientX, e.clientY)) clearTimeout(exitTimer);
+    else schedulePassThrough();
+  });
+
+  window.addEventListener('mousedown', (e) => {
+    if (!isCapturing || !isOverModel(e.clientX, e.clientY)) return;
+    isDragging  = true;
+    didDrag     = false;
+    dragAnchorX = e.screenX;
+    dragAnchorY = e.screenY;
+    setCursor('grabbing');
+    window.electronAPI.startDrag({ offsetX: e.clientX, offsetY: e.clientY });
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    const wasClick = !didDrag;
+    isDragging = false;
+    didDrag    = false;
+    setCursor('grab');
+    window.electronAPI.endDrag();
+
+    if (wasClick) {
+      applyExpression('Milk Tea');
+      setTimeout(() => startMoodCycling(), 4000);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Model load
+  // ---------------------------------------------------------------------------
+  async function loadModel() {
+    try {
+      const model = await PIXI.live2d.Live2DModel.from(MODEL_PATH, { autoInteract: false });
+      app.stage.addChild(model);
+
+      const scale = (window.innerHeight * 0.9) / model.height;
+      model.scale.set(scale);
+      model.x = window.innerWidth / 2;
+      model.y = window.innerHeight * 1.0;
+      model.anchor.set(0.5, 1.0);
+      window._live2dModel = model;
+
+      app.ticker.add(() => {
+        const t    = Date.now();
+        const core = model.internalModel.coreModel;
+        core.setParameterValueById('ParamBreath',     Math.sin(t / 1500) * 0.5);
+        core.setParameterValueById('ParamAngleY',     Math.sin(t / 4000) * 8);
+        core.setParameterValueById('ParamBodyAngleX', Math.sin(t / 5000) * 4);
+        mouthValue *= 0.85;
+        core.setParameterValueById('ParamMouthOpenY', mouthValue);
+
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+        const dx = (mouseX - cx) / cx;
+        const dy = (mouseY - cy) / cy;
+        core.setParameterValueById('ParamEyeBallX', dx * 1.0);
+        core.setParameterValueById('ParamEyeBallY', dy * 1.0);
+        core.setParameterValueById('ParamAngleX',   dx * 15);
+        core.setParameterValueById('ParamAngleY', -dy * 15 + Math.sin(t / 4000) * 3);
+      });
+
+      startMoodCycling();
+      console.log('Model loaded.');
+    } catch (err) {
+      console.error('Model load error:', err);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chat/voice bridge
+  // ---------------------------------------------------------------------------
+  window.addEventListener('message', (event) => {
+    const m = event.data;
+    if (!m || !m.type) return;
+    if (m.type === 'set_mood') {
+      currentMoodKey = moodToPool(m.mood);
+      moodPoolIndex  = 0;
+      startMoodCycling();
+    }
+    if (m.type === 'reply_expression') applyExpression(m.expression);
+    if (m.type === 'mouth_open')       mouthValue = 0.8;
+  });
+
+  loadModel();
+  </script>
+</body>
+</html>

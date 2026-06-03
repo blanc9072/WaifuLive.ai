@@ -1,0 +1,26 @@
+    Terminal 1 — FastAPI backend:
+
+cd ~/Documents/Real\ Waifu\ copy
+source .venv/bin/activate
+python main.py
+
+    Terminal 2 — Live2D Flutter static server:
+
+cd ~/Documents/Real\ Waifu\ copy/flutter_app/web
+python3 -m http.server 8080
+
+    Terminal 3 — Gemini Live relay:
+
+cd ~/Documents/Real\ Waifu\ copy
+source .venv/bin/activate
+python live_server.py
+
+    Terminal 4 — Flutter:
+
+cd ~/Documents/Real\ Waifu\ copy/flutter_app
+flutter run -d chrome
+
+    Terminal 5 - Electron:
+
+cd ~/Documents/Real\ Waifu\ copy/electron-app
+npm start

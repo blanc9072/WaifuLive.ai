@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Georgia, serif; }
+    body {
+      background: #FAF8F5;
+      width: 100vw; height: 100vh;
+      display: flex; flex-direction: column;
+      border-radius: 16px; overflow: hidden;
+      border: 1px solid #DDD8D0;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      -webkit-app-region: no-drag;
+    }
+    #titlebar {
+      -webkit-app-region: drag;
+      background: white;
+      padding: 12px 16px 10px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid #EDE9E3; flex-shrink: 0;
+    }
+    #titlebar h1 { font-size: 18px; font-weight: 700; color: #2C2C2C; letter-spacing: -0.5px; }
+    #micBtn {
+      -webkit-app-region: no-drag;
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1px solid #DDD8D0; background: #F0EDE8;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 16px; transition: all 0.2s;
+    }
+    #micBtn.active { background: #B5D99C; border-color: #4A6741; }
+    #chips {
+      background: #FAF8F5; padding: 8px 16px;
+      display: flex; gap: 8px;
+      border-bottom: 1px solid #EDE9E3; flex-shrink: 0;
+    }
+    .chip {
+      background: white; border: 1px solid #DDD8D0;
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 11px; color: #666; font-weight: 500;
+    }
+    #messages {
+      flex: 1; overflow-y: auto;
+      padding: 12px 16px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-thumb { background: #DDD8D0; border-radius: 2px; }
+    .bubble {
+      max-width: 75%; padding: 9px 13px;
+      border-radius: 16px; font-size: 13px;
+      line-height: 1.45; word-wrap: break-word;
+    }
+    .bubble.user {
+      align-self: flex-end; background: #B5D99C;
+      color: #2C4A23; border-bottom-right-radius: 4px;
+    }
+    .bubble.pistachio {
+      align-self: flex-start; background: white;
+      color: #2C2C2C; border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    #typing { display: none; align-self: flex-start; }
+    #typing.show { display: flex; }
+    .dot {
+      width: 6px; height: 6px; background: #4A6741;
+      border-radius: 50%; margin: 0 2px;
+      animation: bounce 1s infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.15s; }
+    .dot:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bounce {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+    #inputbar {
+      background: white; border-top: 1px solid #EDE9E3;
+      padding: 10px 12px; display: flex; gap: 8px;
+      align-items: center; flex-shrink: 0;
+    }
+    #input {
+      flex: 1; background: #F5F2EE;
+      border: 1px solid #DDD8D0; border-radius: 20px;
+      padding: 8px 14px; font-size: 13px;
+      font-family: Georgia, serif; outline: none; color: #2C2C2C;
+    }
+    #input:focus { border-color: #4A6741; }
+    #sendBtn {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: #4A6741; border: none; color: white;
+      font-size: 16px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #empty {
+      flex: 1; display: flex; align-items: center;
+      justify-content: center; color: rgba(0,0,0,0.15);
+      font-style: italic; font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div id="titlebar">
+    <h1>Pistachio</h1>
+    <button id="micBtn" title="Cmd+Shift+M">🎙</button>
+  </div>
+  <div id="chips">
+    <span class="chip" id="chipMood">😶 chill</span>
+    <span class="chip" id="chipActivity">🕐 unknown</span>
+    <span class="chip" id="chipLocation">📍 unknown</span>
+  </div>
+  <div id="messages">
+    <div id="empty">say something...</div>
+    <div id="typing" class="bubble pistachio">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+  </div>
+  <div id="inputbar">
+    <input id="input" type="text" placeholder="message pistachio..." />
+    <button id="sendBtn">↑</button>
+  </div>
+
+  <script>
+  const API_BASE = 'http://localhost:8000';
+  const USERNAME = 'blanc2';
+  const LIVE_WS  = 'ws://localhost:8765';
+
+  const messagesEl   = document.getElementById('messages');
+  const inputEl      = document.getElementById('input');
+  const typingEl     = document.getElementById('typing');
+  const emptyEl      = document.getElementById('empty');
+  const micBtn       = document.getElementById('micBtn');
+  const chipMood     = document.getElementById('chipMood');
+  const chipActivity = document.getElementById('chipActivity');
+  const chipLocation = document.getElementById('chipLocation');
+
+  let micOn        = false;
+  let ws           = null;
+  let audioCtx     = null;
+  let mediaStream  = null;
+  let processor    = null;
+  let audioQueue   = [];
+  let isPlaying    = false;
+  let nextPlayTime = 0;
+  let transcriptBuffer = '';
+  let transcriptTimer  = null;
+
+  const bc = new BroadcastChannel('pistachio');
+
+  // ---------------------------------------------------------------------------
+  // UI helpers
+  // ---------------------------------------------------------------------------
+  function addBubble(text, isUser) {
+    emptyEl.style.display = 'none';
+    const div = document.createElement('div');
+    div.className = `bubble ${isUser ? 'user' : 'pistachio'}`;
+    div.textContent = text;
+    messagesEl.insertBefore(div, typingEl);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function setTyping(show) {
+    typingEl.className = `bubble pistachio${show ? ' show' : ''}`;
+    if (show) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function updateChips(mood, activity, location) {
+    chipMood.textContent     = `😶 ${mood}`;
+    chipActivity.textContent = `🕐 ${activity}`;
+    chipLocation.textContent = `📍 ${location}`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Emotion classifier
+  // ---------------------------------------------------------------------------
+  function classifyEmotion(text) {
+    const t = text.toLowerCase();
+    if (/miss|lonely|sad|cry|hurt|pain|tear|sobbing/.test(t))                               return 'cry';
+    if (/annoy|jealous|mad|angry|sulk|hmph/.test(t))                                        return 'black face';
+    if (/shy|embarrass|blush|flustered/.test(t))                                            return 'shyness';
+    if (/love you|adore|cherish|only you|kiss|hug|darling|my love|baby|sweetheart/.test(t)) return 'Love eye';
+    if (/excited|yay|amazing|wow|happy|glad|fun/.test(t))                                   return 'Y Hand Posture';
+    if (/money|rich|expensive|cost|pay|afford/.test(t))                                     return 'Money Hand Posture';
+    if (/phone|text|call|message|discord/.test(t))                                          return 'Phone Hand Posture';
+    if (/chill|relax|boba|milk tea/.test(t))                                                return 'Milk Tea';
+    if (/sit|tired|rest|couch|bed/.test(t))                                                 return 'sitting position';
+    return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Text chat with screenshot
+  // ---------------------------------------------------------------------------
+  function shouldCaptureScreen(text) {
+    return /\b(screen|display|desktop|monitor|what('s| is) (on|happening|going on|showing)|look at (this|my)|can you see)\b/i.test(text);
+  }
+
+  async function sendMessage(text) {
+    if (!text.trim()) return;
+    addBubble(text, true);
+    inputEl.value = '';
+    setTyping(true);
+
+    let screenshotB64 = null;
+    if (window.electronAPI?.captureScreen && shouldCaptureScreen(text)) {
+      try {
+        const dataUrl = await window.electronAPI.captureScreen();
+        if (dataUrl) {
+          screenshotB64 = dataUrl.split(',')[1];
+        } else {
+          console.warn('[chat] Screenshot null — Screen Recording permission may not be granted.');
+        }
+      } catch (e) {
+        console.warn('[chat] Screenshot capture threw:', e);
+      }
+    }
+
+    try {
+      const res  = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username:   USERNAME,
+          message:    text,
+          screenshot: screenshotB64,
+        }),
+      });
+      const data = await res.json();
+      setTyping(false);
+      addBubble(data.reply, false);
+
+      const wm = data.working_memory || {};
+      updateChips(wm.mood || 'chill', wm.activity || 'unknown', wm.location || 'unknown');
+
+      bc.postMessage({ type: 'reply_expression', expression: classifyEmotion(data.reply) });
+      bc.postMessage({ type: 'set_mood', mood: wm.mood || 'chill' });
+    } catch (e) {
+      setTyping(false);
+      addBubble('(could not reach backend — is main.py running?)', false);
+      console.error(e);
+    }
+  }
+
+  document.getElementById('sendBtn').onclick = () => sendMessage(inputEl.value);
+  inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(inputEl.value); });
+
+  // ---------------------------------------------------------------------------
+  // Audio playback
+  // ---------------------------------------------------------------------------
+  function ensureAudioCtx() {
+    if (!audioCtx) audioCtx = new AudioContext({ sampleRate: 24000 });
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function enqueueAudio(buf) {
+    audioQueue.push(buf);
+    if (!isPlaying) playNext();
+  }
+
+  function playNext() {
+    if (!audioQueue.length) { isPlaying = false; return; }
+    isPlaying = true;
+    const ctx    = ensureAudioCtx();
+    const buf    = audioQueue.shift();
+    const source = ctx.createBufferSource();
+    source.buffer = buf;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    analyser.connect(ctx.destination);
+    const startAt = Math.max(ctx.currentTime, nextPlayTime);
+    source.start(startAt);
+    nextPlayTime = startAt + buf.duration;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    const lip  = setInterval(() => {
+      analyser.getByteFrequencyData(data);
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      bc.postMessage({ type: 'mouth_open', value: Math.min(1, avg / 60) });
+    }, 30);
+    source.addEventListener('ended', () => { clearInterval(lip); playNext(); });
+  }
+
+  function decodeAndEnqueue(arrayBuffer) {
+    const ctx = ensureAudioCtx();
+    const i16 = new Int16Array(arrayBuffer);
+    const f32 = new Float32Array(i16.length);
+    for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
+    const buf = ctx.createBuffer(1, f32.length, 24000);
+    buf.copyToChannel(f32, 0);
+    enqueueAudio(buf);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Voice transcript accumulator
+  // ---------------------------------------------------------------------------
+  function accumulateTranscript(text) {
+    transcriptBuffer += (transcriptBuffer ? ' ' : '') + text;
+    clearTimeout(transcriptTimer);
+    transcriptTimer = setTimeout(() => {
+      if (!transcriptBuffer.trim()) return;
+      addBubble(transcriptBuffer.trim(), false);
+      bc.postMessage({ type: 'reply_expression', expression: classifyEmotion(transcriptBuffer) });
+      transcriptBuffer = '';
+    }, 800);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mic
+  // ---------------------------------------------------------------------------
+  async function startMic() {
+    const ctx   = ensureAudioCtx();
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const src   = ctx.createMediaStreamSource(mediaStream);
+    processor   = ctx.createScriptProcessor(4096, 1, 1);
+    processor.onaudioprocess = (e) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const f32 = e.inputBuffer.getChannelData(0);
+      const i16 = new Int16Array(f32.length);
+      for (let i = 0; i < f32.length; i++) i16[i] = Math.max(-32768, Math.min(32767, f32[i] * 32768));
+      ws.send(i16.buffer);
+    };
+    src.connect(processor);
+    processor.connect(ctx.destination);
+  }
+
+  function stopMic() {
+    if (processor)   { processor.disconnect(); processor = null; }
+    if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  }
+
+  // ---------------------------------------------------------------------------
+  // WebSocket voice
+  // ---------------------------------------------------------------------------
+  function connectVoice() {
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+    ws = new WebSocket(LIVE_WS);
+    ws.binaryType = 'arraybuffer';
+    ws.onopen    = async () => { await startMic(); };
+    ws.onclose   = ()       => { stopMic(); };
+    ws.onerror   = (e)      => console.error('[Voice]', e);
+    ws.onmessage = (event)  => {
+      if (event.data instanceof ArrayBuffer) {
+        decodeAndEnqueue(event.data);
+      } else {
+        try {
+          const m = JSON.parse(event.data);
+          if (m.type === 'transcript')       accumulateTranscript(m.text);
+          if (m.type === 'input_transcript') addBubble(m.text, true);
+        } catch (_) {}
+      }
+    };
+  }
+
+  function disconnectVoice() {
+    stopMic();
+    if (ws) { ws.close(); ws = null; }
+    audioQueue = []; isPlaying = false; nextPlayTime = 0;
+  }
+
+  function toggleMic() {
+    micOn = !micOn;
+    micBtn.classList.toggle('active', micOn);
+    micBtn.textContent = micOn ? '🎙' : '🔇';
+    if (micOn) connectVoice(); else disconnectVoice();
+  }
+
+  micBtn.onclick = toggleMic;
+
+  if (window.electronAPI) {
+    window.electronAPI.onToggleMic(() => toggleMic());
+  }
+  </script>
+</body>
+</html>
