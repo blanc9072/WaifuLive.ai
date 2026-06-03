@@ -6,15 +6,15 @@ An always-on-screen anime companion ("Pistachio / Tachi") that lives in the corn
 Architecture
 
 Python backend (main.py)
-├── FastAPI HTTP API  :8000   — chat / memory / sleep
-└── Gemini Live relay :8765   — voice WebSocket bridge
+- FastAPI HTTP API  :8000   — chat / memory / sleep
+- Gemini Live relay :8765   — voice WebSocket bridge
 
 Electron desktop app
-├── main.js           — auth, session storage, API proxy
-├── preload.js        — IPC bridge (secrets never reach renderer)
-└── src/
-    ├── login.html    — sign in / create account
-    ├── chat.html     — text chat + mic toggle + screenshot
-    ├── model.html    — Live2D avatar 
-    └── settings.html — persona / voice / avatar picker
+- main.js        — auth, session storage, API proxy
+- preload.js     — IPC bridge (secrets never reach renderer)
+- src/
+    - login.html    — sign in / create account
+    - chat.html     — text chat + mic toggle + screenshot
+    - model.html    — Live2D avatar 
+    - settings.html — persona / voice / avatar picker
 
