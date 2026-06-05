@@ -25,9 +25,11 @@ _bearer = HTTPBearer()
 def _get_supabase() -> SupabaseClient:
     global _supabase
     if _supabase is None:
+        # Use service key — anon key can misbehave with auth.get_user() on some
+        # supabase-py versions when called server-side without an active session.
         _supabase = create_client(
             os.environ["SUPABASE_URL"],
-            os.environ["SUPABASE_ANON_KEY"],
+            os.environ["SUPABASE_SERVICE_KEY"],
         )
     return _supabase
 
@@ -45,8 +47,29 @@ async def get_current_user(
             _get_supabase().auth.get_user, credentials.credentials
         )
         return result.user.id
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    except Exception as e:
+        raw = str(e)
+        # Classify the failure reason explicitly for diagnostics.
+        if "expired" in raw.lower():
+            reason = "EXPIRED_TOKEN"
+        elif "invalid" in raw.lower() and "signature" in raw.lower():
+            reason = "SIGNATURE_MISMATCH"
+        elif "malformed" in raw.lower() or "invalid jwt" in raw.lower():
+            reason = "MALFORMED_TOKEN"
+        elif "audience" in raw.lower():
+            reason = "WRONG_AUDIENCE"
+        elif "not found" in raw.lower() or "user" in raw.lower():
+            reason = "USER_NOT_FOUND"
+        else:
+            reason = "UNKNOWN"
+        log.warning(
+            "Token verification FAILED reason=%s exc_type=%s exc=%s token_prefix=%s",
+            reason,
+            type(e).__name__,
+            raw,
+            credentials.credentials[:40] if credentials.credentials else "none",
+        )
+        raise HTTPException(status_code=401, detail=f"Invalid or expired token. [{reason}]")
 
 
 # ---------------------------------------------------------------------------

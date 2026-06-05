@@ -94,6 +94,62 @@ async function sbUpsert(endpoint, body, token) {
 }
 
 // ---------------------------------------------------------------------------
+// Token refresh — keeps access_token fresh; refresh_token survives on disk
+// ---------------------------------------------------------------------------
+
+function _tokenExpiry(token) {
+  try {
+    // JWT payload is base64url — normalise to standard base64 before decoding.
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+    return payload.exp || 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function _forceLogin() {
+  clearStoredSession();
+  for (const w of [modelWindow, chatWindow, settingsWindow]) {
+    try { if (w && !w.isDestroyed()) w.close(); } catch (_) {}
+  }
+  modelWindow = chatWindow = settingsWindow = null;
+  chatVisible = false;
+  createLoginWindow();
+}
+
+// Returns a guaranteed-fresh access token, refreshing via the refresh_token
+// when the current one is expired or expiring within 60 s.  Throws (after
+// routing the user back to login) if the refresh token is also dead.
+async function getValidToken() {
+  if (!session) throw new Error('Not logged in.');
+  const now = Math.floor(Date.now() / 1000);
+  if (_tokenExpiry(session.access_token) - now > 60) {
+    return session.access_token;
+  }
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,
+      {
+        method:  'POST',
+        headers: SB_HEADERS,
+        body:    JSON.stringify({ refresh_token: session.refresh_token }),
+      },
+    );
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error_description || body.msg || `Refresh ${res.status}`);
+    session.access_token  = body.access_token;
+    session.refresh_token = body.refresh_token;
+    persistSession();
+    return session.access_token;
+  } catch (err) {
+    console.warn('[auth] Token refresh failed — forcing re-login:', err.message);
+    _forceLogin();
+    throw new Error('Session expired. Please log in again.');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Windows
 // ---------------------------------------------------------------------------
 
@@ -279,12 +335,12 @@ ipcMain.handle('auth:getUser', () => {
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
-  if (!session) throw new Error('Not logged in.');
+  const token = await getValidToken();
   const res = await fetch(`${API_BASE}/chat`, {
     method:  'POST',
     headers: {
       'Content-Type':  'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
+      'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify({ username, message, screenshot }),
   });
@@ -297,14 +353,14 @@ ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('settings:load', async () => {
-  if (!session) throw new Error('Not logged in.');
+  const token = await getValidToken();
   const [personas, voices, avatars, profileArr] = await Promise.all([
     sbGet('/rest/v1/personas?select=id,name,is_default&order=name'),
     sbGet('/rest/v1/voices?select=id,name,description,is_default&order=name'),
     sbGet('/rest/v1/avatars?select=id,name,file_path,is_default&order=name'),
     sbGet(
       `/rest/v1/profiles?id=eq.${session.user_id}&select=persona_id,voice_id,avatar_id`,
-      session.access_token,
+      token,
     ),
   ]);
   const profile = profileArr[0] || {};
@@ -312,11 +368,11 @@ ipcMain.handle('settings:load', async () => {
 });
 
 ipcMain.handle('settings:save', async (_, { personaId, voiceId, avatarId }) => {
-  if (!session) throw new Error('Not logged in.');
+  const token = await getValidToken();
   await sbUpsert(
     '/rest/v1/profiles',
     { id: session.user_id, persona_id: personaId, voice_id: voiceId, avatar_id: avatarId },
-    session.access_token,
+    token,
   );
   return { ok: true };
 });
