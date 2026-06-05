@@ -220,9 +220,10 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Chat/voice bridge
+  // Chat/voice bridge — receives BroadcastChannel messages from chat.html
   // ---------------------------------------------------------------------------
-  window.addEventListener('message', (event) => {
+  const bc = new BroadcastChannel('pistachio');
+  bc.addEventListener('message', (event) => {
     const m = event.data;
     if (!m || !m.type) return;
     if (m.type === 'set_mood') {
@@ -231,7 +232,7 @@
       startMoodCycling();
     }
     if (m.type === 'reply_expression') applyExpression(m.expression);
-    if (m.type === 'mouth_open')       mouthValue = 0.8;
+    if (m.type === 'mouth_open')       mouthValue = Math.min(1, Math.max(0, m.value ?? 0.8));
   });
 
   loadModel();

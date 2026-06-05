@@ -234,6 +234,8 @@
 
       bc.postMessage({ type: 'reply_expression', expression: classifyEmotion(data.reply) });
       bc.postMessage({ type: 'set_mood', mood: wm.mood || 'chill' });
+
+      if (data.audio_b64) playTtsAudio(data.audio_b64);
     } catch (e) {
       setTyping(false);
       addBubble('(could not reach backend — is main.py running?)', false);
@@ -290,6 +292,44 @@
     const buf = ctx.createBuffer(1, f32.length, 24000);
     buf.copyToChannel(f32, 0);
     enqueueAudio(buf);
+  }
+
+  // ---------------------------------------------------------------------------
+  // TTS playback — engine-agnostic: just decodes whatever bytes the backend
+  // returned (MP3, Ogg, etc.) via the browser's built-in codec support.
+  // ---------------------------------------------------------------------------
+  async function playTtsAudio(b64) {
+    const ctx = ensureAudioCtx();
+    const binary = atob(b64);
+    const bytes  = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    let audioBuffer;
+    try {
+      audioBuffer = await ctx.decodeAudioData(bytes.buffer);
+    } catch (e) {
+      console.warn('[tts] decodeAudioData failed:', e);
+      return;
+    }
+
+    const source   = ctx.createBufferSource();
+    source.buffer  = audioBuffer;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    analyser.connect(ctx.destination);
+    source.start();
+
+    const freqData = new Uint8Array(analyser.frequencyBinCount);
+    let smooth = 0;
+    const lip = setInterval(() => {
+      analyser.getByteFrequencyData(freqData);
+      const raw  = freqData.reduce((a, b) => a + b, 0) / freqData.length;
+      smooth     = smooth * 0.6 + (raw / 80) * 0.4;
+      bc.postMessage({ type: 'mouth_open', value: Math.min(1, smooth) });
+    }, 30);
+
+    source.addEventListener('ended', () => clearInterval(lip));
   }
 
   // ---------------------------------------------------------------------------

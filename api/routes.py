@@ -11,6 +11,8 @@ from google.genai import types
 from core.gemini import gemini_client, GEMINI_MODEL, generate_reply
 from core.memory import get_session
 from core.prompts import build_dynamic_prompt
+import core.db as db
+import core.tts as tts
 
 log = logging.getLogger(__name__)
 
@@ -103,8 +105,9 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    reply:        str
+    reply:          str
     working_memory: dict
+    audio_b64:      str | None = None
 
 
 class MemoryResponse(BaseModel):
@@ -230,6 +233,16 @@ async def chat(
         await session.append("assistant", reply)
         asyncio.create_task(session.update_working_memory(gemini_client, GEMINI_MODEL))
 
+        # TTS — non-fatal: missing voice or synthesis error just omits audio.
+        audio_b64: str | None = None
+        try:
+            tts_ref = await db.fetch_voice_tts_ref(user_id)
+            if tts_ref:
+                audio_bytes = await tts.synthesize(reply, tts_ref)
+                audio_b64   = base64.b64encode(audio_bytes).decode()
+        except Exception as exc:
+            log.warning("TTS failed (non-fatal): %s", exc)
+
         return ChatResponse(
             reply=reply,
             working_memory={
@@ -237,6 +250,7 @@ async def chat(
                 "activity": session.working_memory.activity,
                 "mood":     session.working_memory.mood,
             },
+            audio_b64=audio_b64,
         )
 
 

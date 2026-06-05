@@ -121,3 +121,43 @@ async def upsert_wm(user_id: str, location: str, activity: str, mood: str) -> No
             {"user_id": user_id, "location": location, "activity": activity, "mood": mood}
         ).execute()
     await _run(_)
+
+
+# ---------------------------------------------------------------------------
+# voice
+# ---------------------------------------------------------------------------
+
+async def fetch_voice_tts_ref(user_id: str) -> str | None:
+    """Return tts_ref for the user's voice; falls back to the is_default voice."""
+    def _():
+        profile_rows = (
+            _sb().table("profiles")
+            .select("voice_id")
+            .eq("id", user_id)
+            .execute()
+            .data
+        )
+        voice_id = profile_rows[0].get("voice_id") if profile_rows else None
+
+        if voice_id:
+            rows = (
+                _sb().table("voices")
+                .select("tts_ref")
+                .eq("id", voice_id)
+                .execute()
+                .data
+            )
+            if rows and rows[0].get("tts_ref"):
+                return rows[0]["tts_ref"]
+
+        # No profile row, voice_id is NULL, or voice missing tts_ref → use default.
+        rows = (
+            _sb().table("voices")
+            .select("tts_ref")
+            .eq("is_default", True)
+            .limit(1)
+            .execute()
+            .data
+        )
+        return rows[0]["tts_ref"] if rows else None
+    return await _run(_)
