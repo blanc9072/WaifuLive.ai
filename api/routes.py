@@ -2,6 +2,8 @@ import asyncio
 import logging
 import base64
 import os
+import tempfile
+from faster_whisper import WhisperModel
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -95,6 +97,23 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
+# Whisper (on-device STT — base.en int8, ~154 MB, downloaded on first use)
+# ---------------------------------------------------------------------------
+
+_whisper: WhisperModel | None = None
+
+
+def _get_whisper() -> WhisperModel:
+    global _whisper
+    if _whisper is None:
+        # Downloads to ~/.cache/huggingface/hub/ on first call (~154 MB).
+        # int8 quantization: CPU-friendly, fast enough for dictation bursts.
+        _whisper = WhisperModel("base.en", device="cpu", compute_type="int8")
+        log.info("Whisper base.en loaded.")
+    return _whisper
+
+
+# ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
 
@@ -108,6 +127,10 @@ class ChatResponse(BaseModel):
     reply:          str
     working_memory: dict
     audio_b64:      str | None = None
+
+
+class TranscribeRequest(BaseModel):
+    audio_b64: str   # base64-encoded WAV at any sample rate
 
 
 class MemoryResponse(BaseModel):
@@ -156,6 +179,38 @@ def _build_parts(message_text: str, image_bytes: bytes | None, use_direct: bool)
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.post("/transcribe")
+async def transcribe_audio(
+    req: TranscribeRequest,
+    user_id: str = Depends(get_current_user),
+):
+    """Transcribe a base64-encoded WAV using on-device Whisper (base.en int8).
+    First call downloads the model (~154 MB); subsequent calls are fast.
+    Transcription is on-stop, not streaming — returns the full transcript."""
+    audio_bytes = base64.b64decode(req.audio_b64)
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        f.write(audio_bytes)
+        tmp_path = f.name
+
+    try:
+        def _run() -> str:
+            model = _get_whisper()
+            # faster-whisper returns a generator; consume it fully inside the thread.
+            segments, _ = model.transcribe(tmp_path, beam_size=5, language="en")
+            return " ".join(s.text.strip() for s in segments).strip()
+
+        transcript = await asyncio.to_thread(_run)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    log.debug("Transcribed %d bytes → %r", len(audio_bytes), transcript[:60])
+    return {"transcript": transcript}
 
 
 @app.post("/chat", response_model=ChatResponse)

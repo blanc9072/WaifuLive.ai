@@ -1,0 +1,163 @@
+/* ============================================================
+   PISTACHIO — Design Tokens
+   Single source of truth. All screens import this file.
+   No screen may hardcode a color, spacing, radius, or timing.
+
+   THEMING
+   -------
+   Light is the default. Dark activates via:
+     document.documentElement.dataset.theme = 'dark';
+   Toggle back with 'light' or removing the attribute.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+
+
+/* ── Light theme (default — no attribute needed) ──────────── */
+:root {
+
+  /* ── Accent ───────────────────────────────────────────────
+     Sage green. Light: the given brand anchor.
+     Adding more voices later = inserting table rows only.       */
+  --color-accent:         #84B067;   /* sage green — brand anchor */
+  --color-accent-hover:   #72A055;   /* ~10% darker for press/hover */
+  --color-accent-subtle:  #EDF5E9;   /* pale tint for selected/active bg */
+  --color-accent-on:      #2D4E23;   /* text/icon on top of accent-subtle */
+
+  /* ── Backgrounds & surfaces ───────────────────────────────
+     Warm-neutral, not cold blue-gray.                           */
+  --color-bg:             #FAF8F5;   /* canvas — warm off-white */
+  --color-surface:        #FFFFFF;   /* cards, panels, popovers */
+  --color-surface-2:      #F5F2EE;   /* secondary / hover state */
+  --color-surface-active: #EDEAE5;   /* pressed / selected state */
+
+  /* ── Text ─────────────────────────────────────────────────  */
+  --color-text-primary:   #1C1A17;   /* near-black, warm-tinted */
+  --color-text-secondary: #5A5652;   /* labels, subheadings */
+  --color-text-muted:     #9C9792;   /* captions, placeholders, hints */
+
+  /* ── Neutral / disabled ───────────────────────────────────
+     For off-state icons (tray, inactive toggles), not for text. */
+  --color-neutral:        #C4C0BA;
+
+  /* ── Border / divider ─────────────────────────────────────
+     Use sparingly — space and tonal shift should do the work.   */
+  --color-border:         #E5E1DB;
+
+  /* ── Shadows — soft, diffuse, warm-tinted ─────────────────  */
+  --shadow-sm:  0 1px 3px  rgba(50,38,22,.07), 0 1px 2px rgba(50,38,22,.05);
+  --shadow-md:  0 4px 16px rgba(50,38,22,.09), 0 2px 6px rgba(50,38,22,.06);
+  --shadow-lg:  0 12px 40px rgba(50,38,22,.12), 0 4px 12px rgba(50,38,22,.07);
+}
+
+
+/* ── Dark theme ───────────────────────────────────────────── */
+:root[data-theme="dark"] {
+
+  /* Accent: lifted +8 L, +10 S vs light — pops on warm-dark chrome.
+     Light #84B067 ≈ H97° S27% L55%.  Dark #9DC87A ≈ H97° S37% L63%.  */
+  --color-accent:         #9DC87A;
+  --color-accent-hover:   #AEDA8C;
+  --color-accent-subtle:  #1A2716;
+  --color-accent-on:      #C8E8B0;
+
+  /* Backgrounds — warm dark, not blue-black */
+  --color-bg:             #1C1A17;
+  --color-surface:        #252320;
+  --color-surface-2:      #2D2B27;
+  --color-surface-active: #353330;
+
+  /* Text */
+  --color-text-primary:   #F0EDE8;
+  --color-text-secondary: #B5B0A8;
+  --color-text-muted:     #7A7670;
+
+  /* Neutral / disabled */
+  --color-neutral:        #4A4844;
+
+  /* Border */
+  --color-border:         #302E2A;
+
+  /* Shadows — stronger blacks; dark UI reads depth differently */
+  --shadow-sm:  0 1px 3px  rgba(0,0,0,.28), 0 1px 2px rgba(0,0,0,.22);
+  --shadow-md:  0 4px 16px rgba(0,0,0,.38), 0 2px 6px rgba(0,0,0,.28);
+  --shadow-lg:  0 12px 40px rgba(0,0,0,.50), 0 4px 12px rgba(0,0,0,.35);
+}
+
+
+/* ── Spacing ──────────────────────────────────────────────── */
+:root {
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  40px;
+  --space-2xl: 64px;
+}
+
+
+/* ── Shape — one radius reused everywhere ─────────────────── */
+:root {
+  --radius:      10px;    /* primary — cards, buttons, inputs */
+  --radius-sm:    6px;    /* inner elements, tags, badges */
+  --radius-lg:   16px;    /* large panels, popovers */
+  --radius-full: 999px;   /* pills */
+}
+
+
+/* ── Typography — DM Sans: humanist, warm, not corporate ──── */
+:root {
+  --font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+
+  /* Scale tuned for a compact desktop tray app */
+  --font-size-xs:    11px;
+  --font-size-sm:    12px;
+  --font-size-base:  13px;   /* body default */
+  --font-size-md:    15px;
+  --font-size-lg:    17px;
+  --font-size-xl:    22px;
+
+  --line-height-tight:   1.25;
+  --line-height-normal:  1.5;
+  --line-height-relaxed: 1.65;
+
+  --letter-spacing-caps:   0.7px;   /* for ALL-CAPS labels */
+  --letter-spacing-tight: -0.2px;
+}
+
+
+/* ── Motion — slow, gentle; the UI breathes ──────────────── */
+:root {
+  --ease:        cubic-bezier(0.16, 1, 0.3, 1);   /* smooth deceleration */
+  --ease-in:     cubic-bezier(0.4, 0, 1, 1);
+  --ease-out:    cubic-bezier(0, 0, 0.2, 1);
+
+  --duration-fast:   150ms;   /* micro-interactions (icon swap, checkmark) */
+  --duration-normal: 250ms;   /* standard hover, state changes */
+  --duration-slow:   350ms;   /* panel open/close, theme switch */
+}
+
+
+/* ── Base reset — applied when tokens.css is the entry point ─ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:             var(--font-family);
+  font-size:               var(--font-size-base);
+  font-weight:             var(--font-weight-regular);
+  line-height:             var(--line-height-normal);
+  color:                   var(--color-text-primary);
+  background:              var(--color-bg);
+  -webkit-font-smoothing:  antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

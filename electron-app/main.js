@@ -348,6 +348,19 @@ ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
   return res.json();
 });
 
+ipcMain.handle('api:transcribe', async (_, audioB64) => {
+  const token = await getValidToken();
+  // 60 s timeout: first call downloads the Whisper model (~154 MB).
+  const res = await fetch(`${API_BASE}/transcribe`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body:    JSON.stringify({ audio_b64: audioB64 }),
+    signal:  AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) throw new Error(`Transcribe ${res.status}: ${await res.text()}`);
+  return res.json();
+});
+
 // ---------------------------------------------------------------------------
 // IPC — settings
 // ---------------------------------------------------------------------------

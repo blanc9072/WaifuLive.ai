@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>Pistachio — Design Token Demo</title>
+  <link rel="stylesheet" href="../tokens.css">
+  <style>
+    /* ── Demo scaffold — NOT production code ─────────────── */
+    body {
+      padding: var(--space-xl);
+      min-height: 100vh;
+      transition:
+        background var(--duration-slow) var(--ease),
+        color      var(--duration-slow) var(--ease);
+    }
+
+    /* Theme toggle — top-right */
+    #theme-toggle {
+      position: fixed;
+      top: var(--space-md);
+      right: var(--space-md);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      background:   var(--color-surface);
+      border:       1px solid var(--color-border);
+      border-radius: var(--radius-full);
+      box-shadow:   var(--shadow-sm);
+      cursor:       pointer;
+      font-family:  var(--font-family);
+      font-size:    var(--font-size-sm);
+      font-weight:  var(--font-weight-medium);
+      color:        var(--color-text-secondary);
+      transition:
+        background  var(--duration-normal) var(--ease),
+        color       var(--duration-normal) var(--ease),
+        box-shadow  var(--duration-normal) var(--ease);
+    }
+    #theme-toggle:hover { color: var(--color-text-primary); box-shadow: var(--shadow-md); }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .page-title {
+      font-size:      var(--font-size-md);
+      font-weight:    var(--font-weight-semibold);
+      letter-spacing: var(--letter-spacing-tight);
+      color:          var(--color-text-primary);
+      margin-bottom:  var(--space-xs);
+    }
+    .page-sub {
+      font-size:     var(--font-size-sm);
+      color:         var(--color-text-muted);
+      margin-bottom: var(--space-xl);
+    }
+
+    .section {
+      margin-bottom: var(--space-xl);
+    }
+    .section-label {
+      font-size:      var(--font-size-xs);
+      font-weight:    var(--font-weight-semibold);
+      letter-spacing: var(--letter-spacing-caps);
+      text-transform: uppercase;
+      color:          var(--color-text-muted);
+      margin-bottom:  var(--space-md);
+    }
+
+    /* ── Color swatches ─────────────────────────────────────── */
+    .swatch-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+    }
+    .swatch {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+    .swatch-chip {
+      width:  80px;
+      height: 52px;
+      border-radius: var(--radius);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--shadow-sm);
+    }
+    .swatch-name {
+      font-size:  var(--font-size-xs);
+      color:      var(--color-text-muted);
+      text-align: center;
+    }
+
+    /* ── Surface cards ──────────────────────────────────────── */
+    .card-row {
+      display: flex;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+    }
+    .card {
+      padding:       var(--space-lg);
+      border-radius: var(--radius-lg);
+      border:        1px solid var(--color-border);
+      box-shadow:    var(--shadow-md);
+      min-width:     180px;
+      transition:
+        background   var(--duration-slow) var(--ease),
+        box-shadow   var(--duration-normal) var(--ease);
+    }
+    .card.bg-surface   { background: var(--color-surface); }
+    .card.bg-surface-2 { background: var(--color-surface-2); }
+    .card.bg-subtle    { background: var(--color-accent-subtle); border-color: transparent; }
+    .card-title {
+      font-size:   var(--font-size-sm);
+      font-weight: var(--font-weight-semibold);
+      color:       var(--color-text-primary);
+      margin-bottom: var(--space-xs);
+    }
+    .card-body {
+      font-size: var(--font-size-sm);
+      color:     var(--color-text-secondary);
+    }
+
+    /* ── Buttons ────────────────────────────────────────────── */
+    .btn-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+    }
+    .btn {
+      display:       inline-flex;
+      align-items:   center;
+      gap:           var(--space-xs);
+      padding:       var(--space-sm) var(--space-md);
+      border-radius: var(--radius-full);
+      border:        none;
+      font-family:   var(--font-family);
+      font-size:     var(--font-size-base);
+      font-weight:   var(--font-weight-medium);
+      cursor:        pointer;
+      transition:
+        background  var(--duration-normal) var(--ease),
+        color       var(--duration-normal) var(--ease),
+        box-shadow  var(--duration-normal) var(--ease),
+        transform   var(--duration-fast)   var(--ease);
+    }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: var(--color-accent);
+      color:      #fff;
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-primary:hover {
+      background: var(--color-accent-hover);
+      box-shadow: var(--shadow-md);
+    }
+
+    .btn-secondary {
+      background: var(--color-surface);
+      color:      var(--color-text-primary);
+      border:     1px solid var(--color-border);
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-secondary:hover {
+      background: var(--color-surface-2);
+      box-shadow: var(--shadow-md);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color:      var(--color-text-secondary);
+    }
+    .btn-ghost:hover {
+      background: var(--color-surface-2);
+      color:      var(--color-text-primary);
+    }
+
+    .btn-disabled {
+      background: var(--color-surface-2);
+      color:      var(--color-neutral);
+      cursor:     default;
+    }
+
+    /* ── Text hierarchy ─────────────────────────────────────── */
+    .type-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+    .type-row {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-md);
+    }
+    .type-label {
+      font-size: var(--font-size-xs);
+      color:     var(--color-neutral);
+      width:     100px;
+      flex-shrink: 0;
+    }
+
+    /* ── Divider ────────────────────────────────────────────── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--color-border);
+      margin: var(--space-xl) 0;
+    }
+
+    /* ── Inline pill / badge ────────────────────────────────── */
+    .pill {
+      display:       inline-block;
+      padding:       2px var(--space-sm);
+      border-radius: var(--radius-full);
+      font-size:     var(--font-size-xs);
+      font-weight:   var(--font-weight-medium);
+    }
+    .pill-accent {
+      background: var(--color-accent-subtle);
+      color:      var(--color-accent-on);
+    }
+    .pill-neutral {
+      background: var(--color-surface-2);
+      color:      var(--color-text-muted);
+    }
+
+    /* ── Accent value callout ───────────────────────────────── */
+    .accent-compare {
+      display: flex;
+      gap: var(--space-md);
+      align-items: flex-start;
+    }
+    .accent-swatch {
+      width: 120px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+    }
+    .accent-chip {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+      color: rgba(255,255,255,0.9);
+      letter-spacing: var(--letter-spacing-caps);
+    }
+    .chip-light  { background: #84B067; }
+    .chip-dark   { background: #9DC87A; }
+    .accent-meta {
+      font-size: var(--font-size-sm);
+      color:     var(--color-text-muted);
+      line-height: var(--line-height-relaxed);
+    }
+    .accent-meta strong {
+      display: block;
+      font-weight: var(--font-weight-semibold);
+      color:       var(--color-text-primary);
+      margin-bottom: 2px;
+    }
+    .accent-meta code {
+      font-family: 'Menlo', 'Monaco', monospace;
+      font-size:   var(--font-size-xs);
+      background:  var(--color-surface-2);
+      padding:     1px 5px;
+      border-radius: var(--radius-sm);
+    }
+    .accent-meta p + p { margin-top: var(--space-sm); }
+  </style>
+</head>
+<body>
+
+  <button id="theme-toggle" onclick="toggleTheme()">
+    <span id="toggle-icon">☽</span>
+    <span id="toggle-label">Dark mode</span>
+  </button>
+
+  <p class="page-title">Pistachio — Design Language</p>
+  <p class="page-sub">Token demo. Inspect in both themes before building any screens.</p>
+
+
+  <!-- ── ACCENT COMPARE ─────────────────────────────────── -->
+  <div class="section">
+    <p class="section-label">Accent — light vs dark</p>
+    <div class="accent-compare">
+      <div class="accent-swatch">
+        <div class="accent-chip chip-light">LIGHT</div>
+        <div class="accent-chip chip-dark">DARK</div>
+      </div>
+      <div class="accent-meta">
+        <p>
+          <strong>Light — #84B067</strong>
+          HSL 97° 27% 55% — given brand anchor.
+        </p>
+        <p>
+          <strong>Dark — #9DC87A</strong>
+          HSL 97° 37% 63% — same hue, +8 L, +10 S.
+          Brighter so it reads on warm-dark chrome; muddy
+          <code>#84B067</code> replaced with this in dark mode.
+        </p>
+        <p>
+          The live accent below tracks the active theme.
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--color-accent);vertical-align:middle;margin-left:4px;"></span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ── COLORS ─────────────────────────────────────────── -->
+  <div class="section">
+    <p class="section-label">Background & surfaces</p>
+    <div class="swatch-row">
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-bg)"></div>
+        <span class="swatch-name">--bg</span>
+      </div>
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-surface)"></div>
+        <span class="swatch-name">--surface</span>
+      </div>
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-surface-2)"></div>
+        <span class="swatch-name">--surface-2</span>
+      </div>
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-surface-active)"></div>
+        <span class="swatch-name">--active</span>
+      </div>
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-accent-subtle)"></div>
+        <span class="swatch-name">--accent-subtle</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <p class="section-label">Text</p>
+    <div class="swatch-row">
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-text-primary)"></div>
+        <span class="swatch-name">--primary</span>
+      </div>
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-text-secondary)"></div>
+        <span class="swatch-name">--secondary</span>
+      </div>
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-text-muted)"></div>
+        <span class="swatch-name">--muted</span>
+      </div>
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-neutral)"></div>
+        <span class="swatch-name">--neutral</span>
+      </div>
+      <div class="swatch">
+        <div class="swatch-chip" style="background:var(--color-border)"></div>
+        <span class="swatch-name">--border</span>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ── SURFACES ───────────────────────────────────────── -->
+  <div class="section">
+    <p class="section-label">Surface hierarchy</p>
+    <div class="card-row">
+      <div class="card bg-surface">
+        <div class="card-title">Surface</div>
+        <div class="card-body">Elevated panel, popover, card. White in light; warm dark in dark.</div>
+      </div>
+      <div class="card bg-surface-2">
+        <div class="card-title">Surface 2</div>
+        <div class="card-body">Hover state, inset section, secondary row.</div>
+      </div>
+      <div class="card bg-subtle">
+        <div class="card-title" style="color:var(--color-accent-on)">Accent subtle</div>
+        <div class="card-body" style="color:var(--color-accent-on)">Selected state, active pill, highlighted row.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ── BUTTONS ─────────────────────────────────────────── -->
+  <div class="section">
+    <p class="section-label">Controls</p>
+    <div class="btn-row">
+      <button class="btn btn-primary">Save settings</button>
+      <button class="btn btn-secondary">Cancel</button>
+      <button class="btn btn-ghost">Dismiss</button>
+      <button class="btn btn-disabled" disabled>Unavailable</button>
+      <span class="pill pill-accent">chill</span>
+      <span class="pill pill-neutral">unknown</span>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ── TYPOGRAPHY ──────────────────────────────────────── -->
+  <div class="section">
+    <p class="section-label">Type scale</p>
+    <div class="type-stack">
+      <div class="type-row">
+        <span class="type-label">xl · 22px · 600</span>
+        <span style="font-size:var(--font-size-xl);font-weight:var(--font-weight-semibold);letter-spacing:var(--letter-spacing-tight);">Pistachio</span>
+      </div>
+      <div class="type-row">
+        <span class="type-label">lg · 17px · 600</span>
+        <span style="font-size:var(--font-size-lg);font-weight:var(--font-weight-semibold);">Settings</span>
+      </div>
+      <div class="type-row">
+        <span class="type-label">md · 15px · 500</span>
+        <span style="font-size:var(--font-size-md);font-weight:var(--font-weight-medium);">Voice selection</span>
+      </div>
+      <div class="type-row">
+        <span class="type-label">base · 13px · 400</span>
+        <span style="font-size:var(--font-size-base);">hey, what are we doing tonight?</span>
+      </div>
+      <div class="type-row">
+        <span class="type-label">sm · 12px · 400</span>
+        <span style="font-size:var(--font-size-sm);color:var(--color-text-secondary);">Section label or timestamp</span>
+      </div>
+      <div class="type-row">
+        <span class="type-label">xs · 11px · 600 caps</span>
+        <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);letter-spacing:var(--letter-spacing-caps);text-transform:uppercase;color:var(--color-text-muted);">Voice</span>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- ── SHADOW LAYERS ───────────────────────────────────── -->
+  <div class="section">
+    <p class="section-label">Shadow depth</p>
+    <div class="btn-row" style="align-items:flex-end;">
+      <div style="
+        width:100px; height:60px; border-radius:var(--radius);
+        background:var(--color-surface); box-shadow:var(--shadow-sm);
+        display:flex; align-items:center; justify-content:center;
+        font-size:var(--font-size-xs); color:var(--color-text-muted);">
+        sm
+      </div>
+      <div style="
+        width:120px; height:72px; border-radius:var(--radius);
+        background:var(--color-surface); box-shadow:var(--shadow-md);
+        display:flex; align-items:center; justify-content:center;
+        font-size:var(--font-size-xs); color:var(--color-text-muted);">
+        md
+      </div>
+      <div style="
+        width:140px; height:88px; border-radius:var(--radius);
+        background:var(--color-surface); box-shadow:var(--shadow-lg);
+        display:flex; align-items:center; justify-content:center;
+        font-size:var(--font-size-xs); color:var(--color-text-muted);">
+        lg
+      </div>
+    </div>
+  </div>
+
+  <script>
+  function toggleTheme() {
+    const html  = document.documentElement;
+    const isDark = html.dataset.theme === 'dark';
+    html.dataset.theme = isDark ? 'light' : 'dark';
+    document.getElementById('toggle-icon').textContent  = isDark ? '☽' : '☀';
+    document.getElementById('toggle-label').textContent = isDark ? 'Dark mode' : 'Light mode';
+  }
+  </script>
+
+</body>
+</html>

@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="../tokens.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: Georgia, serif; }
     body {
@@ -96,6 +97,64 @@
       justify-content: center; color: rgba(0,0,0,0.15);
       font-style: italic; font-size: 13px;
     }
+
+    /* ── Dictation button ──────────────────────────────────────────── */
+    #dictBtn {
+      width: 34px; height: 34px; flex-shrink: 0;
+      border-radius: var(--radius-full);
+      border: 1.5px solid var(--color-border);
+      background: transparent;
+      color: var(--color-text-muted);
+      font-size: 15px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition:
+        background   var(--duration-normal) var(--ease),
+        border-color var(--duration-normal) var(--ease),
+        color        var(--duration-normal) var(--ease),
+        opacity      var(--duration-normal) var(--ease);
+    }
+    #dictBtn:hover:not(:disabled):not([data-state="listening"]) {
+      background: var(--color-surface-2);
+      color: var(--color-text-secondary);
+    }
+    /* Listening state: sage accent + breathing pulse so it's unmistakable */
+    #dictBtn[data-state="listening"] {
+      background:   var(--color-accent-subtle);
+      border-color: var(--color-accent);
+      color:        var(--color-accent);
+      animation: dictate-breathe 1.8s ease-in-out infinite;
+    }
+    /* Processing state: neutral, cursor:wait */
+    #dictBtn[data-state="processing"] {
+      background:   var(--color-surface-2);
+      border-color: var(--color-border);
+      color:        var(--color-text-muted);
+      cursor: wait;
+    }
+    /* Denied / disabled state */
+    #dictBtn[data-state="denied"],
+    #dictBtn:disabled {
+      color:        var(--color-neutral);
+      border-color: var(--color-border);
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    @keyframes dictate-breathe {
+      0%, 100% { opacity: 1;    transform: scale(1);    }
+      50%       { opacity: 0.55; transform: scale(0.93); }
+    }
+
+    /* Permission-denied explanation below the input bar */
+    #dictError {
+      display: none;
+      padding: var(--space-sm) var(--space-md);
+      background: var(--color-surface-2);
+      border-top: 1px solid var(--color-border);
+      font-size: var(--font-size-xs);
+      line-height: var(--line-height-normal);
+      color: var(--color-text-secondary);
+      flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -118,8 +177,13 @@
     </div>
   </div>
   <div id="inputbar">
+    <button id="dictBtn" data-state="idle" title="Dictate — click to start">🎙</button>
     <input id="input" type="text" placeholder="message pistachio..." />
     <button id="sendBtn">↑</button>
+  </div>
+  <div id="dictError">
+    Microphone access is needed for dictation. Enable it in<br>
+    System Settings › Privacy &amp; Security › Microphone, then relaunch.
   </div>
 
   <script>
@@ -411,6 +475,203 @@
   if (window.electronAPI) {
     window.electronAPI.onToggleMic(() => toggleMic());
   }
+
+  // ---------------------------------------------------------------------------
+  // Dictation — local on-device STT via Whisper (base.en)
+  //
+  // Streaming strategy: VAD-based chunking.
+  // RMS energy is computed every audio frame; when silence ≥ SILENCE_MS is
+  // detected after speech, the buffered utterance is flushed to Whisper and
+  // the transcript is appended to the input box.  A force-flush fires after
+  // MAX_UTTERANCE_MS regardless of pauses.  Text appears progressively as
+  // you speak — not word-by-word, but utterance-by-utterance.
+  //
+  // A serialized promise queue (dictQ) prevents out-of-order appends when
+  // multiple chunks are in flight concurrently.
+  // ---------------------------------------------------------------------------
+
+  const SILENCE_THRESHOLD  = 0.01;   // RMS below this = silence
+  const SILENCE_MS         = 700;    // ms of silence → flush current utterance
+  const MAX_UTTERANCE_MS   = 9000;   // force-flush after 9 s even without pause
+  const MIN_UTTERANCE_SAMP = 6400;   // ~0.15 s at 44 kHz — skip shorter clips
+
+  const dictBtn   = document.getElementById('dictBtn');
+  const dictError = document.getElementById('dictError');
+
+  let dictState     = 'idle';
+  let dictStream    = null;
+  let dictCtx       = null;
+  let dictSource    = null;
+  let dictProcessor = null;
+  let dictRate      = 44100;
+  let dictChunks    = [];          // accumulates PCM for the current utterance
+  let dictHasSpeech = false;
+  let dictSilTimer  = null;
+  let dictUttStart  = 0;
+  let dictQ         = Promise.resolve();   // serialises IPC calls → in-order text
+
+  function applyDictState(state) {
+    dictState             = state;
+    dictBtn.dataset.state = state;
+    dictError.style.display = state === 'denied' ? 'block' : 'none';
+    dictBtn.disabled      = state === 'processing' || state === 'denied';
+    dictBtn.title = {
+      idle:       'Dictate — click to start',
+      listening:  'Dictating — click to stop',
+      processing: 'Finishing transcription…',
+      denied:     'Microphone access denied',
+    }[state] ?? '';
+  }
+
+  // Flush the current utterance buffer to Whisper, append result to input.
+  function flushUtterance() {
+    clearTimeout(dictSilTimer);
+    const chunks = dictChunks;
+    dictChunks    = [];
+    dictHasSpeech = false;
+    dictUttStart  = Date.now();
+
+    const totalSamples = chunks.reduce((n, c) => n + c.length, 0);
+    if (totalSamples < MIN_UTTERANCE_SAMP) return;   // too short — skip
+
+    dictQ = dictQ.then(async () => {
+      const pcm = new Float32Array(totalSamples);
+      let off = 0;
+      for (const c of chunks) { pcm.set(c, off); off += c.length; }
+
+      const b64 = bufferToBase64(encodePcmAsWav(pcm, dictRate));
+      try {
+        const { transcript } = await window.electronAPI.transcribe(b64);
+        if (transcript) {
+          const cur = inputEl.value.trimEnd();
+          inputEl.value = cur ? cur + ' ' + transcript : transcript;
+          inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+        }
+      } catch (err) {
+        console.error('[dictation] chunk failed:', err);
+      }
+    });
+  }
+
+  async function startDictation() {
+    try {
+      dictStream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      });
+    } catch (err) {
+      const denied = ['NotAllowedError', 'PermissionDeniedError', 'NotFoundError'];
+      if (denied.includes(err.name)) { applyDictState('denied'); return; }
+      console.error('[dictation] getUserMedia:', err);
+      return;
+    }
+
+    dictCtx       = new AudioContext();
+    dictRate      = dictCtx.sampleRate;
+    dictSource    = dictCtx.createMediaStreamSource(dictStream);
+    dictProcessor = dictCtx.createScriptProcessor(4096, 1, 1);
+    dictChunks    = [];
+    dictHasSpeech = false;
+    dictUttStart  = Date.now();
+    dictQ         = Promise.resolve();
+
+    dictProcessor.onaudioprocess = (e) => {
+      const data = e.inputBuffer.getChannelData(0);
+      dictChunks.push(new Float32Array(data));   // copy — buffer is reused
+
+      // RMS energy check
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+      const rms = Math.sqrt(sum / data.length);
+
+      if (rms >= SILENCE_THRESHOLD) {
+        dictHasSpeech = true;
+        clearTimeout(dictSilTimer);
+        // Force-flush if a single utterance runs too long without a pause
+        if (Date.now() - dictUttStart >= MAX_UTTERANCE_MS) flushUtterance();
+      } else if (dictHasSpeech) {
+        // Silence detected after speech — start countdown to flush
+        clearTimeout(dictSilTimer);
+        dictSilTimer = setTimeout(flushUtterance, SILENCE_MS);
+      }
+    };
+
+    dictSource.connect(dictProcessor);
+    dictProcessor.connect(dictCtx.destination);
+    applyDictState('listening');
+  }
+
+  async function stopDictation() {
+    clearTimeout(dictSilTimer);
+
+    // 1. Tear down the audio graph.
+    if (dictProcessor) { dictProcessor.disconnect(); dictProcessor = null; }
+    if (dictSource)    { dictSource.disconnect();    dictSource    = null; }
+    if (dictCtx)       { await dictCtx.close();      dictCtx       = null; }
+
+    // 2. RELEASE the OS mic stream immediately — system indicator goes dark
+    //    before any remaining transcription work is done.
+    if (dictStream) {
+      dictStream.getTracks().forEach(t => t.stop());
+      dictStream = null;
+    }
+
+    // 3. Flush any audio still in the buffer since the last silence.
+    if (dictHasSpeech && dictChunks.length) flushUtterance();
+    else dictChunks = [];
+
+    // 4. Wait for all in-flight transcriptions to settle, then return to idle.
+    if (dictQ !== Promise.resolve()) applyDictState('processing');
+    await dictQ;
+    applyDictState('idle');
+  }
+
+  dictBtn.addEventListener('click', () => {
+    if (dictState === 'idle')           startDictation();
+    else if (dictState === 'listening') stopDictation();
+    // processing / denied: no-op
+  });
+
+  // ── WAV encoder ────────────────────────────────────────────────────────────
+  // Produces a valid RIFF/WAV file from a Float32 mono PCM array.
+
+  function encodePcmAsWav(samples, sampleRate) {
+    const dataBytes = samples.length * 2;     // 16-bit = 2 bytes per sample
+    const buf  = new ArrayBuffer(44 + dataBytes);
+    const view = new DataView(buf);
+
+    const str = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+
+    str(0, 'RIFF');  view.setUint32(4,  36 + dataBytes,   true);
+    str(8, 'WAVE');
+    str(12, 'fmt '); view.setUint32(16, 16,               true);
+                     view.setUint16(20, 1,                true);   // PCM
+                     view.setUint16(22, 1,                true);   // mono
+                     view.setUint32(24, sampleRate,       true);
+                     view.setUint32(28, sampleRate * 2,   true);   // byte rate
+                     view.setUint16(32, 2,                true);   // block align
+                     view.setUint16(34, 16,               true);   // bits/sample
+    str(36, 'data'); view.setUint32(40, dataBytes,        true);
+
+    let i = 44;
+    for (const s of samples) {
+      const c = Math.max(-1, Math.min(1, s));
+      view.setInt16(i, c < 0 ? c * 0x8000 : c * 0x7FFF, true);
+      i += 2;
+    }
+    return buf;
+  }
+
+  // Chunked to avoid call-stack overflow on large ArrayBuffers.
+  function bufferToBase64(buf) {
+    const bytes  = new Uint8Array(buf);
+    const CHUNK  = 8192;
+    let binary   = '';
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(binary);
+  }
+
   </script>
 </body>
 </html>

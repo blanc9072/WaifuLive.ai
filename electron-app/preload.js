@@ -23,7 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUser: ()                => ipcRenderer.invoke('auth:getUser'),
 
   // ── Backend proxy (main injects the token before forwarding) ─────────────
-  sendChat: (payload) => ipcRenderer.invoke('api:chat', payload),
+  sendChat:   (payload)  => ipcRenderer.invoke('api:chat',       payload),
+  transcribe: (audioB64) => ipcRenderer.invoke('api:transcribe', audioB64),
 
   // ── Settings data ─────────────────────────────────────────────────────────
   loadSettings: ()       => ipcRenderer.invoke('settings:load'),
