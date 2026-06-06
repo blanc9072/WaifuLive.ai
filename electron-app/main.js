@@ -1,10 +1,69 @@
 const {
   app, BrowserWindow, globalShortcut, ipcMain,
   screen, desktopCapturer, safeStorage,
+  Tray, Menu, nativeImage,
 } = require('electron');
 const path = require('path');
 const fs   = require('fs');
+const zlib = require('zlib');
 const { SUPABASE_URL, SUPABASE_ANON_KEY, API_BASE } = require('./config');
+
+// ---------------------------------------------------------------------------
+// PNG icon generation — pure Node.js, no external deps
+// ---------------------------------------------------------------------------
+
+const _crcTable = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c;
+  }
+  return t;
+})();
+
+function _crc32(buf) {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) crc = _crcTable[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function _pngChunk(type, data) {
+  const typeBytes = Buffer.from(type, 'ascii');
+  const lenBuf    = Buffer.alloc(4); lenBuf.writeUInt32BE(data.length);
+  const crcBuf    = Buffer.alloc(4); crcBuf.writeUInt32BE(_crc32(Buffer.concat([typeBytes, data])));
+  return Buffer.concat([lenBuf, typeBytes, data, crcBuf]);
+}
+
+// Returns a Buffer containing a valid RGBA PNG of a filled circle on a
+// transparent background.  size should be 22 for macOS menu-bar icons.
+function _circlePng(size, r, g, b) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; ihdr[9] = 6; // 8-bit RGBA
+
+  const cx = size / 2, cy = size / 2, rad = size / 2 - 1;
+  const rows = [];
+  for (let y = 0; y < size; y++) {
+    const row = Buffer.alloc(1 + size * 4); // filter byte + RGBA
+    for (let x = 0; x < size; x++) {
+      const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+      const hit = dx * dx + dy * dy <= rad * rad;
+      const o = 1 + x * 4;
+      row[o] = hit ? r : 0; row[o + 1] = hit ? g : 0;
+      row[o + 2] = hit ? b : 0; row[o + 3] = hit ? 255 : 0;
+    }
+    rows.push(row);
+  }
+
+  const PNG_SIG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  return Buffer.concat([
+    PNG_SIG,
+    _pngChunk('IHDR', ihdr),
+    _pngChunk('IDAT', zlib.deflateSync(Buffer.concat(rows))),
+    _pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 // ---------------------------------------------------------------------------
 // Session — encrypted on disk, never exposed to any renderer
@@ -153,14 +212,61 @@ async function getValidToken() {
 // Windows
 // ---------------------------------------------------------------------------
 
-let loginWindow    = null;
-let modelWindow    = null;
-let chatWindow     = null;
-let settingsWindow = null;
-let chatVisible    = false;
-let dragMode       = false;
-let dragOffsetX    = 0;
-let dragOffsetY    = 0;
+let loginWindow       = null;
+let modelWindow       = null;
+let chatWindow        = null;
+let settingsWindow    = null;
+let chatVisible       = false;
+let dragMode          = false;
+let dragOffsetX       = 0;
+let dragOffsetY       = 0;
+let tray              = null;
+let screenWatchEnabled = false;
+
+// Lazily built on first tray creation (requires app to be ready for nativeImage).
+let _trayIconOn  = null;
+let _trayIconOff = null;
+
+function _trayIcons() {
+  if (!_trayIconOn) {
+    _trayIconOn  = nativeImage.createFromBuffer(_circlePng(22, 0x84, 0xB0, 0x67)); // green
+    _trayIconOff = nativeImage.createFromBuffer(_circlePng(22, 0x9C, 0x97, 0x92)); // grey
+  }
+  return { on: _trayIconOn, off: _trayIconOff };
+}
+
+function setTrayState(enabled) {
+  if (!tray) return;
+  screenWatchEnabled = enabled;
+  const icons = _trayIcons();
+  tray.setImage(enabled ? icons.on : icons.off);
+  tray.setToolTip(enabled ? 'Pistachio — Screen watch: ON' : 'Pistachio — Screen watch: OFF');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: enabled ? '● Screen watch ON' : '○ Screen watch OFF', enabled: false },
+    { type: 'separator' },
+    {
+      label: enabled ? 'Turn OFF screen watch' : 'Turn ON screen watch',
+      click: () => setTrayState(!screenWatchEnabled),
+    },
+    { type: 'separator' },
+    { label: 'Quit Pistachio', click: () => app.quit() },
+  ]));
+}
+
+function setupTray() {
+  if (tray) return;
+  const icons = _trayIcons();
+  tray = new Tray(icons.off);
+  tray.on('click', () => setTrayState(!screenWatchEnabled));
+  setTrayState(false);
+}
+
+function teardownTray() {
+  if (!tray) return;
+  screenWatchEnabled = false;
+  tray.destroy();
+  tray = null;
+}
 
 function createLoginWindow() {
   loginWindow = new BrowserWindow({
@@ -274,6 +380,8 @@ function launchApp() {
     if (chatWindow)  chatWindow.webContents.send('toggle-mic');
     if (modelWindow) modelWindow.webContents.send('toggle-mic');
   });
+
+  setupTray();
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +426,7 @@ ipcMain.handle('auth:signup', async (_, { email, password }) => {
 
 ipcMain.handle('auth:logout', () => {
   clearStoredSession();
+  teardownTray();
   if (modelWindow)    { modelWindow.close(); }
   if (chatWindow)     { chatWindow.close(); }
   if (settingsWindow) { settingsWindow.close(); }
@@ -415,6 +524,7 @@ ipcMain.on('start-drag', (_, { offsetX, offsetY }) => {
 ipcMain.on('end-drag', () => { dragMode = false; });
 
 ipcMain.handle('capture-screen', async () => {
+  if (!screenWatchEnabled) return null;
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
     thumbnailSize: { width: 1920, height: 1080 },
