@@ -1,7 +1,6 @@
-WaifuLive.ai — an AI desktop companion app built around a fine-tuned Gemini model with a Live2D avatar.
+PROJECT: WaifuLive.ai — agentic Live2D AI companion (desktop app)
 
-What it is
-An always-on-screen anime companion ("Pistachio / Tachi") that lives in the corner of your desktop as a Live2D model, responds to text and voice, watches your screen, and remembers things about you across sessions — per user, stored in a real database.
+What it is: An always-on-screen anime companion that lives on the user's desktop as a Live2D avatar, responds to text and voice, can watch the screen, and remembers things per-user across sessions. Brain is a fine-tuned Gemini 2.5 Flash endpoint on Vertex AI. Target market is lonely/isolated users; positioning leans companionship — NOT clinical therapy (see safety notes). Distribution is a downloadable app from a website, not app stores.
 
 Architecture
 
@@ -17,4 +16,3 @@ Electron desktop app
     - chat.html     — text chat + mic toggle + screenshot
     - model.html    — Live2D avatar 
     - settings.html — persona / voice / avatar picker
-
