@@ -4,107 +4,178 @@
   <meta charset="UTF-8">
   <link rel="stylesheet" href="../tokens.css">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Georgia, serif; }
+    /* ── Base ────────────────────────────────────────────────── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #FAF8F5;
+      background: var(--color-bg);
       width: 100vw; height: 100vh;
       display: flex; flex-direction: column;
-      border-radius: 16px; overflow: hidden;
-      border: 1px solid #DDD8D0;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      border-radius: var(--radius-lg); overflow: hidden;
+      border: 1px solid var(--color-border);
+      box-shadow: var(--shadow-lg);
       -webkit-app-region: no-drag;
+      position: relative;
     }
+
+    /* ── Titlebar ─────────────────────────────────────────────── */
     #titlebar {
       -webkit-app-region: drag;
-      background: white;
-      padding: 12px 16px 10px;
+      background: var(--color-surface);
+      padding: 10px 12px 10px 16px;
       display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid #EDE9E3; flex-shrink: 0;
+      border-bottom: 1px solid var(--color-border);
+      flex-shrink: 0; height: 52px;
     }
-    #titlebar h1 { font-size: 18px; font-weight: 700; color: #2C2C2C; letter-spacing: -0.5px; }
+    #titlebar h1 {
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-primary);
+      letter-spacing: var(--letter-spacing-tight);
+    }
+    .titlebar-actions {
+      display: flex; gap: var(--space-sm); align-items: center;
+      -webkit-app-region: no-drag;
+    }
     .titlebar-btn {
       -webkit-app-region: no-drag;
-      width: 36px; height: 36px; border-radius: 50%;
-      border: 1px solid #DDD8D0; background: #F0EDE8;
+      width: 34px; height: 34px; border-radius: var(--radius-full);
+      border: 1px solid var(--color-border);
+      background: var(--color-surface-2);
       cursor: pointer; display: flex; align-items: center; justify-content: center;
-      font-size: 16px; transition: all 0.2s;
+      font-size: 15px;
+      transition: background var(--duration-fast) var(--ease),
+                  border-color var(--duration-fast) var(--ease);
     }
-    #micBtn.active { background: #B5D99C; border-color: #4A6741; }
+    .titlebar-btn:hover { background: var(--color-surface-active); }
+    /* Account button */
+    #accountBtn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 var(--space-sm) 0 5px;
+      height: 34px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--color-border);
+      background: var(--color-surface-2);
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
+      font-family: var(--font-family);
+      cursor: pointer;
+      transition: background var(--duration-fast) var(--ease),
+                  border-color var(--duration-fast) var(--ease),
+                  color var(--duration-fast) var(--ease);
+    }
+    #accountBtn:hover,
+    #accountBtn.is-open {
+      background: var(--color-surface-active);
+      border-color: var(--color-accent);
+      color: var(--color-text-primary);
+    }
+    .acct-initial {
+      width: 22px; height: 22px;
+      border-radius: var(--radius-full);
+      background: var(--color-accent-subtle);
+      color: var(--color-accent);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .acct-name {
+      max-width: 80px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .acct-chevron { font-size: 9px; color: var(--color-text-muted); }
+
+    /* ── Chips ────────────────────────────────────────────────── */
     #chips {
-      background: #FAF8F5; padding: 8px 16px;
-      display: flex; gap: 8px;
-      border-bottom: 1px solid #EDE9E3; flex-shrink: 0;
+      background: var(--color-bg); padding: var(--space-sm) var(--space-md);
+      display: flex; gap: var(--space-sm);
+      border-bottom: 1px solid var(--color-border); flex-shrink: 0;
     }
     .chip {
-      background: white; border: 1px solid #DDD8D0;
-      border-radius: 20px; padding: 3px 10px;
-      font-size: 11px; color: #666; font-weight: 500;
+      background: var(--color-surface); border: 1px solid var(--color-border);
+      border-radius: var(--radius-full); padding: 3px 10px;
+      font-size: var(--font-size-xs); color: var(--color-text-secondary);
+      font-weight: var(--font-weight-medium);
     }
+
+    /* ── Messages ─────────────────────────────────────────────── */
     #messages {
       flex: 1; overflow-y: auto;
-      padding: 12px 16px;
-      display: flex; flex-direction: column; gap: 8px;
+      padding: var(--space-sm) var(--space-md);
+      display: flex; flex-direction: column; gap: var(--space-sm);
     }
     #messages::-webkit-scrollbar { width: 4px; }
-    #messages::-webkit-scrollbar-thumb { background: #DDD8D0; border-radius: 2px; }
+    #messages::-webkit-scrollbar-thumb {
+      background: var(--color-border); border-radius: var(--radius-sm);
+    }
     .bubble {
       max-width: 75%; padding: 9px 13px;
-      border-radius: 16px; font-size: 13px;
-      line-height: 1.45; word-wrap: break-word;
+      border-radius: var(--radius-lg); font-size: var(--font-size-base);
+      line-height: var(--line-height-normal); word-wrap: break-word;
     }
     .bubble.user {
-      align-self: flex-end; background: #B5D99C;
-      color: #2C4A23; border-bottom-right-radius: 4px;
+      align-self: flex-end;
+      background: var(--color-bubble-user-bg);
+      color: var(--color-bubble-user-text);
+      border-bottom-right-radius: var(--radius-sm);
     }
     .bubble.pistachio {
-      align-self: flex-start; background: white;
-      color: #2C2C2C; border-bottom-left-radius: 4px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      align-self: flex-start;
+      background: var(--color-surface); color: var(--color-text-primary);
+      border-bottom-left-radius: var(--radius-sm);
+      box-shadow: var(--shadow-sm);
     }
     #typing { display: none; align-self: flex-start; }
     #typing.show { display: flex; }
     .dot {
-      width: 6px; height: 6px; background: #4A6741;
-      border-radius: 50%; margin: 0 2px;
+      width: 6px; height: 6px; background: var(--color-accent);
+      border-radius: var(--radius-full); margin: 0 2px;
       animation: bounce 1s infinite;
     }
     .dot:nth-child(2) { animation-delay: 0.15s; }
     .dot:nth-child(3) { animation-delay: 0.3s; }
     @keyframes bounce {
       0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-      40% { opacity: 1; transform: scale(1); }
-    }
-    #inputbar {
-      background: white; border-top: 1px solid #EDE9E3;
-      padding: 10px 12px; display: flex; gap: 8px;
-      align-items: center; flex-shrink: 0;
-    }
-    #input {
-      flex: 1; background: #F5F2EE;
-      border: 1px solid #DDD8D0; border-radius: 20px;
-      padding: 8px 14px; font-size: 13px;
-      font-family: Georgia, serif; outline: none; color: #2C2C2C;
-    }
-    #input:focus { border-color: #4A6741; }
-    #sendBtn {
-      width: 36px; height: 36px; border-radius: 50%;
-      background: #4A6741; border: none; color: white;
-      font-size: 16px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
+      40%           { opacity: 1;   transform: scale(1); }
     }
     #empty {
       flex: 1; display: flex; align-items: center;
-      justify-content: center; color: rgba(0,0,0,0.15);
-      font-style: italic; font-size: 13px;
+      justify-content: center; color: var(--color-text-muted);
+      font-style: italic; font-size: var(--font-size-base);
     }
 
-    /* ── Dictation button ──────────────────────────────────────────── */
+    /* ── Input bar ───────────────────────────────────────────── */
+    #inputbar {
+      background: var(--color-surface); border-top: 1px solid var(--color-border);
+      padding: 10px 12px; display: flex; gap: var(--space-sm);
+      align-items: center; flex-shrink: 0;
+    }
+    #input {
+      flex: 1; background: var(--color-surface-2);
+      border: 1px solid var(--color-border); border-radius: var(--radius-full);
+      padding: 8px 14px; font-size: var(--font-size-base);
+      font-family: var(--font-family); outline: none;
+      color: var(--color-text-primary);
+      transition: border-color var(--duration-fast) var(--ease);
+    }
+    #input::placeholder { color: var(--color-text-muted); }
+    #input:focus { border-color: var(--color-accent); }
+    #sendBtn {
+      width: 34px; height: 34px; border-radius: var(--radius-full);
+      background: var(--color-accent); border: none; color: white;
+      font-size: 15px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background var(--duration-fast) var(--ease);
+    }
+    #sendBtn:hover { background: var(--color-accent-hover); }
+
+    /* ── Dictation button ────────────────────────────────────── */
     #dictBtn {
       width: 34px; height: 34px; flex-shrink: 0;
       border-radius: var(--radius-full);
       border: 1.5px solid var(--color-border);
-      background: transparent;
-      color: var(--color-text-muted);
+      background: transparent; color: var(--color-text-muted);
       font-size: 15px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition:
@@ -114,71 +185,237 @@
         opacity      var(--duration-normal) var(--ease);
     }
     #dictBtn:hover:not(:disabled):not([data-state="listening"]) {
-      background: var(--color-surface-2);
-      color: var(--color-text-secondary);
+      background: var(--color-surface-2); color: var(--color-text-secondary);
     }
-    /* Listening state: sage accent + breathing pulse so it's unmistakable */
     #dictBtn[data-state="listening"] {
-      background:   var(--color-accent-subtle);
-      border-color: var(--color-accent);
-      color:        var(--color-accent);
+      background: var(--color-accent-subtle); border-color: var(--color-accent);
+      color: var(--color-accent);
       animation: dictate-breathe 1.8s ease-in-out infinite;
     }
-    /* Processing state: neutral, cursor:wait */
     #dictBtn[data-state="processing"] {
-      background:   var(--color-surface-2);
-      border-color: var(--color-border);
-      color:        var(--color-text-muted);
-      cursor: wait;
+      background: var(--color-surface-2); border-color: var(--color-border);
+      color: var(--color-text-muted); cursor: wait;
     }
-    /* Denied / disabled state */
-    #dictBtn[data-state="denied"],
-    #dictBtn:disabled {
-      color:        var(--color-neutral);
-      border-color: var(--color-border);
-      opacity: 0.55;
-      cursor: not-allowed;
+    #dictBtn[data-state="denied"], #dictBtn:disabled {
+      color: var(--color-neutral); border-color: var(--color-border);
+      opacity: 0.55; cursor: not-allowed;
     }
     @keyframes dictate-breathe {
       0%, 100% { opacity: 1;    transform: scale(1);    }
       50%       { opacity: 0.55; transform: scale(0.93); }
     }
-
-    /* Permission-denied explanation below the input bar */
     #dictError {
-      display: none;
-      padding: var(--space-sm) var(--space-md);
-      background: var(--color-surface-2);
-      border-top: 1px solid var(--color-border);
-      font-size: var(--font-size-xs);
-      line-height: var(--line-height-normal);
-      color: var(--color-text-secondary);
+      display: none; padding: var(--space-sm) var(--space-md);
+      background: var(--color-surface-2); border-top: 1px solid var(--color-border);
+      font-size: var(--font-size-xs); line-height: var(--line-height-normal);
+      color: var(--color-text-secondary); flex-shrink: 0;
+    }
+
+    /* ── Settings overlay ────────────────────────────────────── */
+    #settingsOverlay {
+      position: fixed; top: 52px; right: var(--space-md);
+      width: 284px; z-index: 100;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+
+      opacity: 0; pointer-events: none;
+      transform: scale(0.96) translateY(-6px);
+      transform-origin: top right;
+      transition:
+        opacity   var(--duration-normal) var(--ease),
+        transform var(--duration-normal) var(--ease);
+    }
+    #settingsOverlay.is-open {
+      opacity: 1; pointer-events: auto;
+      transform: scale(1) translateY(0);
+    }
+
+    .ov-section { padding: var(--space-sm) var(--space-md); }
+    .ov-divider { height: 1px; background: var(--color-border); }
+
+    /* Identity */
+    .ov-identity {
+      display: flex; align-items: center; gap: var(--space-sm);
+      padding: var(--space-md);
+    }
+    .ov-avatar {
+      width: 38px; height: 38px; border-radius: var(--radius-full);
+      background: var(--color-accent-subtle); color: var(--color-accent);
+      font-size: var(--font-size-md); font-weight: var(--font-weight-semibold);
+      display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
+    .ov-name {
+      font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold);
+      color: var(--color-text-primary); line-height: var(--line-height-tight);
+    }
+    .ov-email {
+      font-size: var(--font-size-xs); color: var(--color-text-muted);
+      margin-top: 2px; word-break: break-all;
+    }
+
+    /* Rows */
+    .ov-row {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm); min-height: 34px;
+      padding: 3px 0;
+    }
+    .ov-label {
+      display: flex; align-items: center; gap: var(--space-xs);
+      font-size: var(--font-size-sm); color: var(--color-text-secondary);
+      font-weight: var(--font-weight-medium); flex-shrink: 0; min-width: 56px;
+    }
+
+    /* Volume slider */
+    .ov-ctrl-group { display: flex; align-items: center; gap: var(--space-sm); flex: 1; }
+    .ov-slider {
+      flex: 1; height: 4px;
+      -webkit-appearance: none; appearance: none;
+      border-radius: var(--radius-full); outline: none; cursor: pointer;
+      background: linear-gradient(
+        to right,
+        var(--color-accent) 0%,
+        var(--color-accent) var(--val, 80%),
+        var(--color-border) var(--val, 80%),
+        var(--color-border) 100%
+      );
+    }
+    .ov-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px; border-radius: var(--radius-full);
+      background: var(--color-accent); cursor: pointer;
+      border: 2px solid var(--color-surface);
+      box-shadow: var(--shadow-sm);
+    }
+    .ov-value {
+      font-size: var(--font-size-xs); color: var(--color-text-muted);
+      min-width: 32px; text-align: right; font-variant-numeric: tabular-nums;
+    }
+
+    /* Theme segmented — full pill */
+    .ov-segmented {
+      display: flex; background: var(--color-surface-2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-full); padding: 3px; gap: 3px;
+    }
+    .ov-seg-btn {
+      border: none; border-radius: var(--radius-full);
+      background: transparent; color: var(--color-text-muted);
+      font-size: var(--font-size-xs); font-weight: var(--font-weight-medium);
+      font-family: var(--font-family); cursor: pointer;
+      padding: 5px 11px;
+      display: flex; align-items: center; gap: 5px;
+      transition:
+        background var(--duration-fast) var(--ease),
+        color      var(--duration-fast) var(--ease),
+        box-shadow var(--duration-fast) var(--ease);
+    }
+    .ov-seg-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+    .ov-seg-btn.active {
+      background: var(--color-surface); color: var(--color-text-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Pill selects */
+    .pill-select { position: relative; display: inline-block; }
+    .pill-select::after {
+      content: ""; pointer-events: none;
+      position: absolute; right: 11px; top: 50%;
+      width: 6px; height: 6px;
+      border-right: 1.6px solid var(--color-text-muted);
+      border-bottom: 1.6px solid var(--color-text-muted);
+      transform: translateY(-70%) rotate(45deg);
+    }
+    .ov-select {
+      -webkit-appearance: none; appearance: none;
+      font-size: var(--font-size-sm); font-family: var(--font-family);
+      background: var(--color-surface-2); color: var(--color-text-primary);
+      border: 1px solid var(--color-border); border-radius: var(--radius-full);
+      padding: 6px 26px 6px 11px; outline: none; cursor: pointer;
+      transition: border-color var(--duration-fast) var(--ease);
+    }
+    .ov-select:focus { border-color: var(--color-accent); }
+
+    /* Screen-watch toggle switch */
+    .ov-toggle {
+      position: relative;
+      width: 36px; height: 20px; flex-shrink: 0;
+      border-radius: var(--radius-full);
+      border: none; padding: 0;
+      background: var(--color-border);
+      cursor: pointer;
+      transition: background var(--duration-normal) var(--ease);
+    }
+    .ov-toggle[data-on="true"]  { background: var(--color-accent); }
+    .ov-toggle-thumb {
+      position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px;
+      border-radius: var(--radius-full);
+      background: var(--color-surface);
+      box-shadow: var(--shadow-sm);
+      transition: transform var(--duration-normal) var(--ease);
+    }
+    .ov-toggle[data-on="true"] .ov-toggle-thumb { transform: translateX(16px); }
+    .ov-toggle-status {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      min-width: 24px; text-align: right;
+      font-weight: var(--font-weight-medium);
+      transition: color var(--duration-normal) var(--ease);
+    }
+    .ov-toggle-status[data-on="true"] { color: var(--color-accent); }
+
+    /* Sign out — left-aligned row, no border box */
+    .ov-signout {
+      display: flex; align-items: center; justify-content: flex-start;
+      gap: var(--space-sm);
+      width: 100%; min-height: 34px; padding: 3px 0;
+      border: none; border-radius: var(--radius-sm);
+      background: transparent; color: var(--color-danger);
+      font-size: var(--font-size-sm); font-weight: var(--font-weight-medium);
+      font-family: var(--font-family); cursor: pointer;
+      transition: background var(--duration-fast) var(--ease);
+    }
+    .ov-signout:hover { background: var(--color-danger-subtle); }
   </style>
 </head>
 <body>
+
+  <!-- Titlebar -->
   <div id="titlebar">
     <h1>Pistachio</h1>
-    <div style="display:flex;gap:6px;-webkit-app-region:no-drag">
-      <button id="settingsBtn" class="titlebar-btn" title="Settings">⚙</button>
-      <button id="micBtn"      class="titlebar-btn" title="Cmd+Shift+M">🎙</button>
+    <div class="titlebar-actions">
+      <button id="accountBtn">
+        <span class="acct-initial" id="accountInitial">A</span>
+        <span class="acct-name"    id="accountName">account</span>
+        <span class="acct-chevron">▾</span>
+      </button>
     </div>
   </div>
+
+  <!-- Chips -->
   <div id="chips">
-    <span class="chip" id="chipMood">😶 chill</span>
-    <span class="chip" id="chipActivity">🕐 unknown</span>
-    <span class="chip" id="chipLocation">📍 unknown</span>
+    <span class="chip" id="chipMood">chill</span>
+    <span class="chip" id="chipActivity">unknown</span>
+    <span class="chip" id="chipLocation">unknown</span>
   </div>
+
+  <!-- Messages -->
   <div id="messages">
     <div id="empty">say something...</div>
     <div id="typing" class="bubble pistachio">
       <div class="dot"></div><div class="dot"></div><div class="dot"></div>
     </div>
   </div>
+
+  <!-- Input bar -->
   <div id="inputbar">
-    <button id="dictBtn" data-state="idle" title="Dictate — click to start">🎙</button>
-    <input id="input" type="text" placeholder="message pistachio..." />
+    <button id="dictBtn" data-state="idle" title="Dictate — click to start"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
+    <input id="input" type="text" placeholder="message pistachio…" />
     <button id="sendBtn">↑</button>
   </div>
   <div id="dictError">
@@ -186,19 +423,88 @@
     System Settings › Privacy &amp; Security › Microphone, then relaunch.
   </div>
 
+  <!-- Settings overlay — layered over chat, anchored top-right -->
+  <div id="settingsOverlay">
+
+    <div class="ov-section ov-identity">
+      <div class="ov-avatar" id="ovAvatar">A</div>
+      <div>
+        <div class="ov-name"  id="ovName">account</div>
+        <div class="ov-email" id="ovEmail">—</div>
+      </div>
+    </div>
+
+    <div class="ov-divider"></div>
+
+    <div class="ov-section">
+      <div class="ov-row">
+        <label class="ov-label" for="volumeSlider"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>Volume</label>
+        <div class="ov-ctrl-group">
+          <input type="range" id="volumeSlider" class="ov-slider" min="0" max="100" value="80">
+          <span class="ov-value" id="volumeValue">80%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ov-divider"></div>
+
+    <div class="ov-section">
+      <div class="ov-row">
+        <span class="ov-label"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>Theme</span>
+        <div class="ov-segmented">
+          <button class="ov-seg-btn active" data-theme="light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>Light</button>
+          <button class="ov-seg-btn"        data-theme="dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>Dark</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ov-divider"></div>
+
+    <div class="ov-section">
+      <div class="ov-row">
+        <label class="ov-label" for="personaSelect"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>Persona</label>
+        <div class="pill-select"><select id="personaSelect" class="ov-select"><option>Loading…</option></select></div>
+      </div>
+      <div class="ov-row">
+        <label class="ov-label" for="voiceSelect"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Voice</label>
+        <div class="pill-select"><select id="voiceSelect" class="ov-select"><option>Loading…</option></select></div>
+      </div>
+      <div class="ov-row">
+        <label class="ov-label" for="avatarSelect"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>Avatar</label>
+        <div class="pill-select"><select id="avatarSelect" class="ov-select"><option>Loading…</option></select></div>
+      </div>
+    </div>
+
+    <div class="ov-divider"></div>
+
+    <div class="ov-section">
+      <div class="ov-row">
+        <span class="ov-label"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Screen watch</span>
+        <button class="ov-toggle" id="screenWatchToggle" data-on="false">
+          <span class="ov-toggle-thumb"></span>
+        </button>
+        <span class="ov-toggle-status" id="screenWatchStatus" data-on="false">OFF</span>
+      </div>
+    </div>
+
+    <div class="ov-divider"></div>
+
+    <div class="ov-section">
+      <button class="ov-signout" id="logoutBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sign out</button>
+    </div>
+
+  </div>
+
   <script>
   const LIVE_WS = 'ws://localhost:8765';
 
-  // Display name comes from the verified session, not hardcoded.
-  // Falls back to 'user' if the IPC call fails for any reason.
+  // Display name from verified session — never hardcoded.
   let USERNAME = 'user';
-  window.electronAPI.getUser().then(u => { if (u?.email) USERNAME = u.email.split('@')[0]; });
 
   const messagesEl   = document.getElementById('messages');
   const inputEl      = document.getElementById('input');
   const typingEl     = document.getElementById('typing');
   const emptyEl      = document.getElementById('empty');
-  const micBtn       = document.getElementById('micBtn');
   const chipMood     = document.getElementById('chipMood');
   const chipActivity = document.getElementById('chipActivity');
   const chipLocation = document.getElementById('chipLocation');
@@ -206,6 +512,7 @@
   let micOn        = false;
   let ws           = null;
   let audioCtx     = null;
+  let gainNode     = null;    // shared gain for all TTS / voice audio
   let mediaStream  = null;
   let processor    = null;
   let audioQueue   = [];
@@ -234,9 +541,9 @@
   }
 
   function updateChips(mood, activity, location) {
-    chipMood.textContent     = `😶 ${mood}`;
-    chipActivity.textContent = `🕐 ${activity}`;
-    chipLocation.textContent = `📍 ${location}`;
+    chipMood.textContent     = mood;
+    chipActivity.textContent = activity;
+    chipLocation.textContent = location;
   }
 
   // ---------------------------------------------------------------------------
@@ -276,7 +583,7 @@
         if (dataUrl) {
           screenshotB64 = dataUrl.split(',')[1];
         } else {
-          console.warn('[chat] Screenshot null — Screen Recording permission may not be granted.');
+          console.warn('[chat] Screenshot null — screen watch may be OFF or permission not granted.');
         }
       } catch (e) {
         console.warn('[chat] Screenshot capture threw:', e);
@@ -284,7 +591,6 @@
     }
 
     try {
-      // Routed through main.js — token is injected there, never in this renderer.
       const data = await window.electronAPI.sendChat({
         username:   USERNAME,
         message:    text,
@@ -307,15 +613,19 @@
     }
   }
 
-  document.getElementById('sendBtn').onclick    = () => sendMessage(inputEl.value);
-  document.getElementById('settingsBtn').onclick = () => window.electronAPI.openSettings();
+  document.getElementById('sendBtn').onclick = () => sendMessage(inputEl.value);
   inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(inputEl.value); });
 
   // ---------------------------------------------------------------------------
-  // Audio playback
+  // Audio — shared AudioContext + GainNode for all playback
   // ---------------------------------------------------------------------------
   function ensureAudioCtx() {
-    if (!audioCtx) audioCtx = new AudioContext({ sampleRate: 24000 });
+    if (!audioCtx) {
+      audioCtx = new AudioContext({ sampleRate: 24000 });
+      gainNode  = audioCtx.createGain();
+      gainNode.gain.value = ttsVolume;
+      gainNode.connect(audioCtx.destination);
+    }
     if (audioCtx.state === 'suspended') audioCtx.resume();
     return audioCtx;
   }
@@ -335,7 +645,7 @@
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 256;
     source.connect(analyser);
-    analyser.connect(ctx.destination);
+    analyser.connect(gainNode);    // ← gain instead of ctx.destination
     const startAt = Math.max(ctx.currentTime, nextPlayTime);
     source.start(startAt);
     nextPlayTime = startAt + buf.duration;
@@ -358,10 +668,6 @@
     enqueueAudio(buf);
   }
 
-  // ---------------------------------------------------------------------------
-  // TTS playback — engine-agnostic: just decodes whatever bytes the backend
-  // returned (MP3, Ogg, etc.) via the browser's built-in codec support.
-  // ---------------------------------------------------------------------------
   async function playTtsAudio(b64) {
     const ctx = ensureAudioCtx();
     const binary = atob(b64);
@@ -381,7 +687,7 @@
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 256;
     source.connect(analyser);
-    analyser.connect(ctx.destination);
+    analyser.connect(gainNode);    // ← gain instead of ctx.destination
     source.start();
 
     const freqData = new Uint8Array(analyser.frequencyBinCount);
@@ -411,7 +717,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Mic
+  // Mic (live WebSocket voice)
   // ---------------------------------------------------------------------------
   async function startMic() {
     const ctx   = ensureAudioCtx();
@@ -465,35 +771,23 @@
 
   function toggleMic() {
     micOn = !micOn;
-    micBtn.classList.toggle('active', micOn);
-    micBtn.textContent = micOn ? '🎙' : '🔇';
     if (micOn) connectVoice(); else disconnectVoice();
   }
 
-  micBtn.onclick = toggleMic;
-
-  if (window.electronAPI) {
-    window.electronAPI.onToggleMic(() => toggleMic());
-  }
+  if (window.electronAPI) window.electronAPI.onToggleMic(() => toggleMic());
 
   // ---------------------------------------------------------------------------
   // Dictation — local on-device STT via Whisper (base.en)
   //
-  // Streaming strategy: VAD-based chunking.
-  // RMS energy is computed every audio frame; when silence ≥ SILENCE_MS is
-  // detected after speech, the buffered utterance is flushed to Whisper and
-  // the transcript is appended to the input box.  A force-flush fires after
-  // MAX_UTTERANCE_MS regardless of pauses.  Text appears progressively as
-  // you speak — not word-by-word, but utterance-by-utterance.
-  //
-  // A serialized promise queue (dictQ) prevents out-of-order appends when
-  // multiple chunks are in flight concurrently.
+  // VAD-based utterance chunking: flush on SILENCE_MS of silence, force-flush
+  // after MAX_UTTERANCE_MS. A serialized promise queue (dictQ) keeps appends
+  // in order when multiple chunks are in flight.
   // ---------------------------------------------------------------------------
 
-  const SILENCE_THRESHOLD  = 0.01;   // RMS below this = silence
-  const SILENCE_MS         = 700;    // ms of silence → flush current utterance
-  const MAX_UTTERANCE_MS   = 9000;   // force-flush after 9 s even without pause
-  const MIN_UTTERANCE_SAMP = 6400;   // ~0.15 s at 44 kHz — skip shorter clips
+  const SILENCE_THRESHOLD  = 0.01;
+  const SILENCE_MS         = 700;
+  const MAX_UTTERANCE_MS   = 9000;
+  const MIN_UTTERANCE_SAMP = 6400;
 
   const dictBtn   = document.getElementById('dictBtn');
   const dictError = document.getElementById('dictError');
@@ -504,11 +798,11 @@
   let dictSource    = null;
   let dictProcessor = null;
   let dictRate      = 44100;
-  let dictChunks    = [];          // accumulates PCM for the current utterance
+  let dictChunks    = [];
   let dictHasSpeech = false;
   let dictSilTimer  = null;
   let dictUttStart  = 0;
-  let dictQ         = Promise.resolve();   // serialises IPC calls → in-order text
+  let dictQ         = Promise.resolve();
 
   function applyDictState(state) {
     dictState             = state;
@@ -523,7 +817,6 @@
     }[state] ?? '';
   }
 
-  // Flush the current utterance buffer to Whisper, append result to input.
   function flushUtterance() {
     clearTimeout(dictSilTimer);
     const chunks = dictChunks;
@@ -532,13 +825,12 @@
     dictUttStart  = Date.now();
 
     const totalSamples = chunks.reduce((n, c) => n + c.length, 0);
-    if (totalSamples < MIN_UTTERANCE_SAMP) return;   // too short — skip
+    if (totalSamples < MIN_UTTERANCE_SAMP) return;
 
     dictQ = dictQ.then(async () => {
       const pcm = new Float32Array(totalSamples);
       let off = 0;
       for (const c of chunks) { pcm.set(c, off); off += c.length; }
-
       const b64 = bufferToBase64(encodePcmAsWav(pcm, dictRate));
       try {
         const { transcript } = await window.electronAPI.transcribe(b64);
@@ -576,9 +868,8 @@
 
     dictProcessor.onaudioprocess = (e) => {
       const data = e.inputBuffer.getChannelData(0);
-      dictChunks.push(new Float32Array(data));   // copy — buffer is reused
+      dictChunks.push(new Float32Array(data));
 
-      // RMS energy check
       let sum = 0;
       for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
       const rms = Math.sqrt(sum / data.length);
@@ -586,10 +877,8 @@
       if (rms >= SILENCE_THRESHOLD) {
         dictHasSpeech = true;
         clearTimeout(dictSilTimer);
-        // Force-flush if a single utterance runs too long without a pause
         if (Date.now() - dictUttStart >= MAX_UTTERANCE_MS) flushUtterance();
       } else if (dictHasSpeech) {
-        // Silence detected after speech — start countdown to flush
         clearTimeout(dictSilTimer);
         dictSilTimer = setTimeout(flushUtterance, SILENCE_MS);
       }
@@ -602,24 +891,15 @@
 
   async function stopDictation() {
     clearTimeout(dictSilTimer);
-
-    // 1. Tear down the audio graph.
     if (dictProcessor) { dictProcessor.disconnect(); dictProcessor = null; }
     if (dictSource)    { dictSource.disconnect();    dictSource    = null; }
     if (dictCtx)       { await dictCtx.close();      dictCtx       = null; }
-
-    // 2. RELEASE the OS mic stream immediately — system indicator goes dark
-    //    before any remaining transcription work is done.
     if (dictStream) {
       dictStream.getTracks().forEach(t => t.stop());
       dictStream = null;
     }
-
-    // 3. Flush any audio still in the buffer since the last silence.
     if (dictHasSpeech && dictChunks.length) flushUtterance();
     else dictChunks = [];
-
-    // 4. Wait for all in-flight transcriptions to settle, then return to idle.
     if (dictQ !== Promise.resolve()) applyDictState('processing');
     await dictQ;
     applyDictState('idle');
@@ -628,30 +908,24 @@
   dictBtn.addEventListener('click', () => {
     if (dictState === 'idle')           startDictation();
     else if (dictState === 'listening') stopDictation();
-    // processing / denied: no-op
   });
 
-  // ── WAV encoder ────────────────────────────────────────────────────────────
-  // Produces a valid RIFF/WAV file from a Float32 mono PCM array.
-
+  // WAV encoder — RIFF/WAV from Float32 mono PCM
   function encodePcmAsWav(samples, sampleRate) {
-    const dataBytes = samples.length * 2;     // 16-bit = 2 bytes per sample
+    const dataBytes = samples.length * 2;
     const buf  = new ArrayBuffer(44 + dataBytes);
     const view = new DataView(buf);
-
-    const str = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
-
-    str(0, 'RIFF');  view.setUint32(4,  36 + dataBytes,   true);
+    const str  = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+    str(0, 'RIFF');  view.setUint32(4,  36 + dataBytes, true);
     str(8, 'WAVE');
-    str(12, 'fmt '); view.setUint32(16, 16,               true);
-                     view.setUint16(20, 1,                true);   // PCM
-                     view.setUint16(22, 1,                true);   // mono
-                     view.setUint32(24, sampleRate,       true);
-                     view.setUint32(28, sampleRate * 2,   true);   // byte rate
-                     view.setUint16(32, 2,                true);   // block align
-                     view.setUint16(34, 16,               true);   // bits/sample
-    str(36, 'data'); view.setUint32(40, dataBytes,        true);
-
+    str(12, 'fmt '); view.setUint32(16, 16,             true);
+                     view.setUint16(20, 1,              true);
+                     view.setUint16(22, 1,              true);
+                     view.setUint32(24, sampleRate,     true);
+                     view.setUint32(28, sampleRate * 2, true);
+                     view.setUint16(32, 2,              true);
+                     view.setUint16(34, 16,             true);
+    str(36, 'data'); view.setUint32(40, dataBytes,      true);
     let i = 44;
     for (const s of samples) {
       const c = Math.max(-1, Math.min(1, s));
@@ -661,16 +935,163 @@
     return buf;
   }
 
-  // Chunked to avoid call-stack overflow on large ArrayBuffers.
   function bufferToBase64(buf) {
-    const bytes  = new Uint8Array(buf);
-    const CHUNK  = 8192;
-    let binary   = '';
-    for (let i = 0; i < bytes.length; i += CHUNK) {
+    const bytes = new Uint8Array(buf);
+    const CHUNK = 8192;
+    let binary  = '';
+    for (let i = 0; i < bytes.length; i += CHUNK)
       binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-    }
     return btoa(binary);
   }
+
+  // ---------------------------------------------------------------------------
+  // Settings overlay
+  // ---------------------------------------------------------------------------
+
+  const accountBtn      = document.getElementById('accountBtn');
+  const settingsOverlay = document.getElementById('settingsOverlay');
+  const volumeSlider    = document.getElementById('volumeSlider');
+  const volumeValueEl   = document.getElementById('volumeValue');
+  const personaSelect   = document.getElementById('personaSelect');
+  const voiceSelect     = document.getElementById('voiceSelect');
+  const avatarSelect    = document.getElementById('avatarSelect');
+  const logoutBtn       = document.getElementById('logoutBtn');
+  const themeButtons    = document.querySelectorAll('.ov-seg-btn');
+
+  // Volume — persisted in localStorage, applied to GainNode
+  let ttsVolume = parseFloat(localStorage.getItem('pistachio-volume') ?? '80') / 100;
+
+  function _updateSlider(el) {
+    const pct = ((el.value - el.min) / (el.max - el.min) * 100).toFixed(1) + '%';
+    el.style.setProperty('--val', pct);
+  }
+
+  volumeSlider.value = Math.round(ttsVolume * 100);
+  volumeValueEl.textContent = Math.round(ttsVolume * 100) + '%';
+  _updateSlider(volumeSlider);
+
+  volumeSlider.addEventListener('input', () => {
+    ttsVolume = volumeSlider.value / 100;
+    volumeValueEl.textContent = volumeSlider.value + '%';
+    localStorage.setItem('pistachio-volume', volumeSlider.value);
+    _updateSlider(volumeSlider);
+    if (gainNode) gainNode.gain.value = ttsVolume;
+  });
+
+  // Theme — persisted in localStorage, switches data-theme on <html>
+  function applyTheme(t) {
+    if (t === 'dark') document.documentElement.dataset.theme = 'dark';
+    else              document.documentElement.removeAttribute('data-theme');
+    themeButtons.forEach(b => b.classList.toggle('active', b.dataset.theme === t));
+    localStorage.setItem('pistachio-theme', t);
+  }
+
+  themeButtons.forEach(btn => btn.addEventListener('click', () => applyTheme(btn.dataset.theme)));
+  applyTheme(localStorage.getItem('pistachio-theme') || 'light');
+
+  // Overlay open / close
+  let overlayLoaded = false;
+
+  function openOverlay() {
+    settingsOverlay.classList.add('is-open');
+    accountBtn.classList.add('is-open');
+    if (!overlayLoaded) { overlayLoaded = true; _loadOverlayData(); }
+  }
+
+  function closeOverlay() {
+    settingsOverlay.classList.remove('is-open');
+    accountBtn.classList.remove('is-open');
+  }
+
+  accountBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    settingsOverlay.classList.contains('is-open') ? closeOverlay() : openOverlay();
+  });
+
+  // Clicks outside the overlay close it
+  document.addEventListener('click', e => {
+    if (settingsOverlay.classList.contains('is-open') && !settingsOverlay.contains(e.target))
+      closeOverlay();
+  });
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOverlay(); });
+
+  // Screen watch — toggle shared with the system tray
+  const screenWatchToggle = document.getElementById('screenWatchToggle');
+  const screenWatchStatus = document.getElementById('screenWatchStatus');
+
+  function _applyScreenWatch(on) {
+    const v = String(!!on);
+    screenWatchToggle.dataset.on = v;
+    screenWatchStatus.dataset.on = v;
+    screenWatchStatus.textContent = on ? 'ON' : 'OFF';
+  }
+
+  screenWatchToggle.addEventListener('click', async () => {
+    const next = screenWatchToggle.dataset.on !== 'true';
+    _applyScreenWatch(next);                        // optimistic update
+    await window.electronAPI.setScreenWatch(next);  // tells main → tray
+  });
+
+  // Keep in sync when toggled from the system tray
+  window.electronAPI.onScreenWatchChanged(on => _applyScreenWatch(on));
+
+  // Load personas / voices / avatars from Supabase on first open
+  async function _loadOverlayData() {
+    // Seed screen-watch toggle with current tray state
+    window.electronAPI.getScreenWatch().then(on => _applyScreenWatch(on));
+
+    try {
+      const { personas, voices, avatars, profile } = await window.electronAPI.loadSettings();
+      const fill = (sel, items, selectedId) => {
+        sel.innerHTML = items
+          .map(i => `<option value="${i.id}"${i.id === selectedId ? ' selected' : ''}>${i.name}</option>`)
+          .join('');
+      };
+      fill(personaSelect, personas, profile.persona_id);
+      fill(voiceSelect,   voices,   profile.voice_id);
+      fill(avatarSelect,  avatars,  profile.avatar_id);
+    } catch (err) {
+      console.error('[settings] load failed:', err);
+      personaSelect.innerHTML = voiceSelect.innerHTML = avatarSelect.innerHTML =
+        '<option>Error loading</option>';
+    }
+  }
+
+  // Save profile on any select change
+  async function _saveSettings() {
+    try {
+      await window.electronAPI.saveSettings({
+        personaId: personaSelect.value,
+        voiceId:   voiceSelect.value,
+        avatarId:  avatarSelect.value,
+      });
+    } catch (err) {
+      console.error('[settings] save failed:', err);
+    }
+  }
+
+  personaSelect.addEventListener('change', _saveSettings);
+  voiceSelect.addEventListener('change',   _saveSettings);
+  avatarSelect.addEventListener('change',  _saveSettings);
+
+  // Logout
+  logoutBtn.addEventListener('click', async () => {
+    closeOverlay();
+    await window.electronAPI.logout();
+  });
+
+  // Populate identity from session — also used to seed overlay identity fields
+  window.electronAPI.getUser().then(u => {
+    if (!u?.email) return;
+    USERNAME = u.email.split('@')[0];
+    const initial = USERNAME[0].toUpperCase();
+    document.getElementById('accountInitial').textContent = initial;
+    document.getElementById('accountName').textContent    = USERNAME;
+    document.getElementById('ovAvatar').textContent       = initial;
+    document.getElementById('ovName').textContent         = USERNAME;
+    document.getElementById('ovEmail').textContent        = u.email;
+  });
 
   </script>
 </body>

@@ -40,6 +40,14 @@
      For off-state icons (tray, inactive toggles), not for text. */
   --color-neutral:        #C4C0BA;
 
+  /* ── Danger — destructive actions only (Sign out, delete) ── */
+  --color-danger:         #D05040;
+  --color-danger-subtle:  #FEF0EE;
+
+  /* ── Chat bubble — user side ─────────────────────────────── */
+  --color-bubble-user-bg:   #B5D99C;
+  --color-bubble-user-text: #2C4A23;
+
   /* ── Border / divider ─────────────────────────────────────
      Use sparingly — space and tonal shift should do the work.   */
   --color-border:         #E5E1DB;
@@ -74,6 +82,14 @@
 
   /* Neutral / disabled */
   --color-neutral:        #4A4844;
+
+  /* Danger */
+  --color-danger:         #E8644E;
+  --color-danger-subtle:  #2A1210;
+
+  /* Chat bubble — user side */
+  --color-bubble-user-bg:   #2A4D20;
+  --color-bubble-user-text: #C0E6A4;
 
   /* Border */
   --color-border:         #302E2A;

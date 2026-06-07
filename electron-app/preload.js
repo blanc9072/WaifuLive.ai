@@ -29,4 +29,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Settings data ─────────────────────────────────────────────────────────
   loadSettings: ()       => ipcRenderer.invoke('settings:load'),
   saveSettings: (prefs)  => ipcRenderer.invoke('settings:save', prefs),
+
+  // ── Screen watch — shared state between overlay and system tray ───────────
+  getScreenWatch:       ()    => ipcRenderer.invoke('screenwatch:get'),
+  setScreenWatch:       (on)  => ipcRenderer.invoke('screenwatch:set', on),
+  onScreenWatchChanged: (cb)  => ipcRenderer.on('screenwatch-changed', (_, v) => cb(v)),
 });

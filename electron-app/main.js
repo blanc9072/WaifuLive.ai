@@ -238,6 +238,10 @@ function _trayIcons() {
 function setTrayState(enabled) {
   if (!tray) return;
   screenWatchEnabled = enabled;
+  // Keep the chat overlay in sync with the tray
+  if (chatWindow && !chatWindow.isDestroyed()) {
+    chatWindow.webContents.send('screenwatch-changed', enabled);
+  }
   const icons = _trayIcons();
   tray.setImage(enabled ? icons.on : icons.off);
   tray.setToolTip(enabled ? 'Pistachio — Screen watch: ON' : 'Pistachio — Screen watch: OFF');
@@ -522,6 +526,13 @@ ipcMain.on('start-drag', (_, { offsetX, offsetY }) => {
 });
 
 ipcMain.on('end-drag', () => { dragMode = false; });
+
+ipcMain.handle('screenwatch:get', () => screenWatchEnabled);
+
+ipcMain.handle('screenwatch:set', (_, enabled) => {
+  setTrayState(!!enabled);
+  return screenWatchEnabled;
+});
 
 ipcMain.handle('capture-screen', async () => {
   if (!screenWatchEnabled) return null;
