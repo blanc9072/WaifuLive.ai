@@ -1,19 +1,27 @@
--- Add the missing tts_ref column to voices
-alter table voices add column tts_ref text;
+-- Add tts_ref column if not already present (earlier migrations may have added it).
+alter table voices add column if not exists tts_ref text;
 
 -- Enforce at most one default voice at the DB level.
--- Partial unique index: only one row where is_default=true is allowed;
--- any number of is_default=false rows are fine.
-create unique index voices_single_default_idx
+create unique index if not exists voices_single_default_idx
   on voices (is_default) where is_default = true;
 
--- Seed the default voice. ElevenLabs ID lives only in this row — never in code.
-insert into voices (name, description, tts_ref, is_default) values (
-  'Pistachio Default',
-  'Warm, natural voice for Pistachio.',
-  'zmcVlqmyk3Jpn5AVYcAL',
-  true
-);
+-- Rename the existing default voice and set its canonical tts_ref.
+-- UPDATE keeps the row ID intact so existing profiles.voice_id FKs stay valid.
+update voices
+  set name = 'Sapphire',
+      description = 'Warm, natural Chinese-American voice.',
+      tts_ref = 'zmcVlqmyk3Jpn5AVYcAL'
+  where is_default = true;
+
+-- Add Lily as a second (non-default) voice if not already present.
+insert into voices (name, description, tts_ref, is_default)
+  select 'Lily', 'Soft, expressive voice.', 'L1QogKoobNwLy4IaMsyA', false
+  where not exists (select 1 from voices where tts_ref = 'L1QogKoobNwLy4IaMsyA');
+
+-- Seed the Nicole Live2D avatar if not already present.
+insert into avatars (name, file_path, is_default)
+  select 'Nicole', '../../assets/live2d/Nicole/Nicole.model3.json', true
+  where not exists (select 1 from avatars where name = 'Nicole');
 
 -- Auto-create a profile for every new Supabase Auth user, pointing
 -- at the is_default rows so a new user always has a working voice.
@@ -40,6 +48,7 @@ begin
 end;
 $$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure handle_new_user();

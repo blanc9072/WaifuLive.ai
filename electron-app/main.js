@@ -481,9 +481,9 @@ ipcMain.handle('api:transcribe', async (_, audioB64) => {
 ipcMain.handle('settings:load', async () => {
   const token = await getValidToken();
   const [personas, voices, avatars, profileArr] = await Promise.all([
-    sbGet('/rest/v1/personas?select=id,name,is_default&order=name'),
-    sbGet('/rest/v1/voices?select=id,name,description,is_default&order=name'),
-    sbGet('/rest/v1/avatars?select=id,name,file_path,is_default&order=name'),
+    sbGet('/rest/v1/personas?select=id,name,is_default&order=name', token),
+    sbGet('/rest/v1/voices?select=id,name,description,is_default&order=name', token),
+    sbGet('/rest/v1/avatars?select=id,name,file_path,is_default&order=name', token),
     sbGet(
       `/rest/v1/profiles?id=eq.${session.user_id}&select=persona_id,voice_id,avatar_id`,
       token,
