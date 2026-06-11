@@ -4,6 +4,17 @@ Terminal 1 — Python backend (FastAPI + Gemini Live relay, both in one process)
     source .venv/bin/activate
     python main.py
 
+    Windows 11 (PowerShell):
+      cd "C:\Users\andre\Dev\Real Waifu copy"
+      .venv\Scripts\Activate.ps1
+      python main.py
+    (First time only — create the venv and install deps first:
+      python -m venv .venv
+      .venv\Scripts\Activate.ps1
+      pip install fastapi uvicorn websockets google-genai
+     If "running scripts is disabled" appears, run once:
+      Set-ExecutionPolicy -Scope CurrentUser RemoteSigned)
+
     Serves:
       http://localhost:8000  — chat / memory / sleep API
       ws://localhost:8765    — voice WebSocket relay (Gemini Live)
@@ -14,12 +25,16 @@ Terminal 2 — Electron desktop app:
     cd ~/Documents/Real\ Waifu\ copy/electron-app
     npm start
 
+    Windows 11 (PowerShell):
+      cd "C:\Users\andre\Dev\Real Waifu copy\electron-app"
+      npm start
+
     On first launch shows the login screen.
     After login: Live2D model window + chat window appear.
     Hotkeys:
-      Cmd+Shift+P  toggle chat window
-      Cmd+Shift+O  toggle model visibility
-      Cmd+Shift+M  toggle mic (voice mode)
+      Cmd+Shift+P  toggle chat window        (Windows: Ctrl+Shift+P)
+      Cmd+Shift+O  toggle model visibility   (Windows: Ctrl+Shift+O)
+      Cmd+Shift+M  toggle mic (voice mode)   (Windows: Ctrl+Shift+M)
 
 
 Optional — Flutter web client (browser-based alternative UI):
@@ -27,6 +42,14 @@ Optional — Flutter web client (browser-based alternative UI):
     cd ~/Documents/Real\ Waifu\ copy/flutter_app
     flutter run -d chrome
 
+    Windows 11 (PowerShell):
+      cd "C:\Users\andre\Dev\Real Waifu copy\flutter_app"
+      flutter run -d chrome
+
     Needs the static asset server if the Live2D model doesn't load:
       cd ~/Documents/Real\ Waifu\ copy/flutter_app/web
       python3 -m http.server 8080
+
+      Windows 11 (PowerShell):
+        cd "C:\Users\andre\Dev\Real Waifu copy\flutter_app\web"
+        python -m http.server 8080

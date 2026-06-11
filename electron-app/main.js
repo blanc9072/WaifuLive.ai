@@ -222,6 +222,16 @@ let dragOffsetX       = 0;
 let dragOffsetY       = 0;
 let tray              = null;
 let screenWatchEnabled = false;
+let isQuitting         = false;   // set true by the tray "Quit" item so window-all-closed lets us exit
+
+// Fully exit the app. window-all-closed normally keeps us alive in the tray, so
+// we flag the intentional quit first, then app.quit(). The timeout force-exits
+// if any window/handler stalls the graceful quit, guaranteeing a real shutdown.
+function quitApp() {
+  isQuitting = true;
+  app.quit();
+  setTimeout(() => app.exit(0), 1000);
+}
 
 // Lazily built on first tray creation (requires app to be ready for nativeImage).
 let _trayIconOn  = null;
@@ -253,7 +263,7 @@ function setTrayState(enabled) {
       click: () => setTrayState(!screenWatchEnabled),
     },
     { type: 'separator' },
-    { label: 'Quit Pistachio', click: () => app.quit() },
+    { label: 'Quit Pistachio (fully exit)', click: () => quitApp() },
   ]));
 }
 
@@ -399,7 +409,7 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => { globalShortcut.unregisterAll(); });
-app.on('window-all-closed', (e) => { e.preventDefault(); });
+app.on('window-all-closed', (e) => { if (!isQuitting) e.preventDefault(); });
 
 // ---------------------------------------------------------------------------
 // IPC — auth
