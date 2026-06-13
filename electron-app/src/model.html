@@ -20,7 +20,11 @@
   <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
 
   <script>
-  const MODEL_PATH = '../../assets/live2d/Nicole/Nicole.model3.json';
+  const DEFAULT_MODEL_PATH = '../../assets/live2d/Nicole/Nicole.model3.json';
+  const _avatarParam = new URLSearchParams(location.search).get('avatar');
+  const MODEL_PATH = _avatarParam || DEFAULT_MODEL_PATH;
+  console.log('[avatar] MODEL_PATH=%s source=%s', MODEL_PATH,
+              _avatarParam ? 'query-param' : 'fallback');
 
   const MOOD_POOLS = {
     'chill':    [null, 'Milk Tea', null, 'sitting position'],

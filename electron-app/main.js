@@ -8,6 +8,10 @@ const fs   = require('fs');
 const zlib = require('zlib');
 const { SUPABASE_URL, SUPABASE_ANON_KEY, API_BASE } = require('./config');
 
+// Renderer-relative path passed to model.html as the ?avatar= query param.
+// Must equal Nicole's DB file_path so the fallback is always consistent.
+const DEFAULT_MODEL_PATH = '../../assets/live2d/Nicole/Nicole.model3.json';
+
 // ---------------------------------------------------------------------------
 // PNG icon generation — pure Node.js, no external deps
 // ---------------------------------------------------------------------------
@@ -208,6 +212,22 @@ async function getValidToken() {
   }
 }
 
+async function getAvatarFilePath() {
+  try {
+    const token = await getValidToken();
+    const res = await fetch(`${API_BASE}/profile`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return body.avatar_file_path || null;
+  } catch (e) {
+    console.warn('[avatar] /profile resolve failed, using default:', e.message);
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Windows
 // ---------------------------------------------------------------------------
@@ -297,7 +317,8 @@ function createLoginWindow() {
   loginWindow.on('closed', () => { loginWindow = null; });
 }
 
-function createModelWindow() {
+async function createModelWindow() {
+  const avatarPath = (await getAvatarFilePath()) || DEFAULT_MODEL_PATH;
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   modelWindow = new BrowserWindow({
     width: 400, height: 700,
@@ -313,7 +334,7 @@ function createModelWindow() {
   });
   modelWindow.setAlwaysOnTop(true, 'screen-saver');
   modelWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  modelWindow.loadFile('src/model.html');
+  modelWindow.loadFile('src/model.html', { query: { avatar: avatarPath } });
   modelWindow.setIgnoreMouseEvents(true, { forward: true });
   modelWindow.on('closed', () => { modelWindow = null; });
 }

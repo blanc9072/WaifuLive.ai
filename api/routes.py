@@ -309,6 +309,12 @@ async def chat(
         )
 
 
+@app.get("/profile")
+async def get_profile(user_id: str = Depends(get_current_user)):
+    avatar_file_path = await db.fetch_avatar_file_path(user_id)
+    return {"avatar_file_path": avatar_file_path}
+
+
 @app.get("/memory", response_model=MemoryResponse)
 async def get_memory(user_id: str = Depends(get_current_user)):
     session = await get_session(user_id)

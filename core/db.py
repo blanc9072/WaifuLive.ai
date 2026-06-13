@@ -124,6 +124,46 @@ async def upsert_wm(user_id: str, location: str, activity: str, mood: str) -> No
 
 
 # ---------------------------------------------------------------------------
+# avatar
+# ---------------------------------------------------------------------------
+
+async def fetch_avatar_file_path(user_id: str) -> str | None:
+    """Return file_path for the user's avatar; falls back to the is_default avatar."""
+    def _():
+        profile_rows = (
+            _sb().table("profiles")
+            .select("avatar_id")
+            .eq("id", user_id)
+            .execute()
+            .data
+        )
+        avatar_id = profile_rows[0].get("avatar_id") if profile_rows else None
+
+        if avatar_id:
+            rows = (
+                _sb().table("avatars")
+                .select("file_path")
+                .eq("id", avatar_id)
+                .execute()
+                .data
+            )
+            if rows and rows[0].get("file_path"):
+                return rows[0]["file_path"]
+
+        # No profile row, avatar_id is NULL, or avatar missing file_path → use default.
+        rows = (
+            _sb().table("avatars")
+            .select("file_path")
+            .eq("is_default", True)
+            .limit(1)
+            .execute()
+            .data
+        )
+        return rows[0]["file_path"] if rows else None
+    return await _run(_)
+
+
+# ---------------------------------------------------------------------------
 # voice
 # ---------------------------------------------------------------------------
 
