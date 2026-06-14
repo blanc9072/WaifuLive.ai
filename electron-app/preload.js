@@ -2,10 +2,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // ── Model window ──────────────────────────────────────────────────────────
-  onMouseMove:    (cb)     => ipcRenderer.on('mouse-move', (_, pos) => cb(pos)),
-  setIgnoreMouse: (ignore) => ipcRenderer.send('set-ignore-mouse', ignore),
-  startDrag:      (offset) => ipcRenderer.send('start-drag', offset),
-  endDrag:        ()       => ipcRenderer.send('end-drag'),
+  onMouseMove:     (cb)     => ipcRenderer.on('mouse-move', (_, pos) => cb(pos)),
+  setIgnoreMouse:  (ignore) => ipcRenderer.send('set-ignore-mouse', ignore),
+  startDrag:       (offset) => ipcRenderer.send('start-drag', offset),
+  endDrag:         ()       => ipcRenderer.send('end-drag'),
+  getAvatarConfig: ()       => ipcRenderer.invoke('avatar:config'),
 
   // ── Chat window ───────────────────────────────────────────────────────────
   onToggleMic:    (cb) => ipcRenderer.on('toggle-mic', cb),

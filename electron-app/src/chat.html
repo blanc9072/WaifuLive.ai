@@ -551,15 +551,15 @@
   // ---------------------------------------------------------------------------
   function classifyEmotion(text) {
     const t = text.toLowerCase();
-    if (/miss|lonely|sad|cry|hurt|pain|tear|sobbing/.test(t))                               return 'cry';
-    if (/annoy|jealous|mad|angry|sulk|hmph/.test(t))                                        return 'black face';
-    if (/shy|embarrass|blush|flustered/.test(t))                                            return 'shyness';
-    if (/love you|adore|cherish|only you|kiss|hug|darling|my love|baby|sweetheart/.test(t)) return 'Love eye';
-    if (/excited|yay|amazing|wow|happy|glad|fun/.test(t))                                   return 'Y Hand Posture';
-    if (/money|rich|expensive|cost|pay|afford/.test(t))                                     return 'Money Hand Posture';
-    if (/phone|text|call|message|discord/.test(t))                                          return 'Phone Hand Posture';
-    if (/chill|relax|boba|milk tea/.test(t))                                                return 'Milk Tea';
-    if (/sit|tired|rest|couch|bed/.test(t))                                                 return 'sitting position';
+    if (/miss|lonely|sad|cry|hurt|pain|tear|sobbing/.test(t))                               return 'sad';
+    if (/annoy|jealous|mad|angry|sulk|hmph/.test(t))                                        return 'annoyed';
+    if (/shy|embarrass|blush|flustered/.test(t))                                            return 'shy';
+    if (/love you|adore|cherish|only you|kiss|hug|darling|my love|baby|sweetheart/.test(t)) return 'loving';
+    if (/excited|yay|amazing|wow|happy|glad|fun/.test(t))                                   return 'excited';
+    if (/money|rich|expensive|cost|pay|afford/.test(t))                                     return 'playful';
+    if (/phone|text|call|message|discord/.test(t))                                          return 'curious';
+    if (/chill|relax|boba|milk tea/.test(t))                                                return 'chill';
+    if (/sit|tired|rest|couch|bed/.test(t))                                                 return 'chill';
     return null;
   }
 
@@ -602,7 +602,7 @@
       const wm = data.working_memory || {};
       updateChips(wm.mood || 'chill', wm.activity || 'unknown', wm.location || 'unknown');
 
-      bc.postMessage({ type: 'reply_expression', expression: classifyEmotion(data.reply) });
+      bc.postMessage({ type: 'reply_expression', expression: classifyEmotion(data.reply) }); // 'expression' is a canonical emotion key
       bc.postMessage({ type: 'set_mood', mood: wm.mood || 'chill' });
 
       if (data.audio_b64) playTtsAudio(data.audio_b64);
@@ -711,7 +711,7 @@
     transcriptTimer = setTimeout(() => {
       if (!transcriptBuffer.trim()) return;
       addBubble(transcriptBuffer.trim(), false);
-      bc.postMessage({ type: 'reply_expression', expression: classifyEmotion(transcriptBuffer) });
+      bc.postMessage({ type: 'reply_expression', expression: classifyEmotion(transcriptBuffer) }); // 'expression' is a canonical emotion key
       transcriptBuffer = '';
     }, 800);
   }
