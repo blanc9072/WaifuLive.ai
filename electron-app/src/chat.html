@@ -1073,7 +1073,10 @@
 
   personaSelect.addEventListener('change', _saveSettings);
   voiceSelect.addEventListener('change',   _saveSettings);
-  avatarSelect.addEventListener('change',  _saveSettings);
+  avatarSelect.addEventListener('change', async () => {
+    await _saveSettings();
+    bc.postMessage({ type: 'avatar_changed' });
+  });
 
   // Logout
   logoutBtn.addEventListener('click', async () => {

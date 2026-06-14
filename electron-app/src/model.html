@@ -103,6 +103,29 @@
     }, 10000 + Math.random() * 8000);
   }
 
+  // Persistent ticker — added once at module scope, survives model swaps.
+  // Reads the current model from the global each tick so swaps are seamless.
+  app.ticker.add(() => {
+    const m = window._live2dModel;
+    if (!m) return;
+    const core = m.internalModel.coreModel;
+    const t    = Date.now();
+    core.setParameterValueById('ParamBreath',     Math.sin(t / 1500) * 0.5);
+    core.setParameterValueById('ParamAngleY',     Math.sin(t / 4000) * 8);
+    core.setParameterValueById('ParamBodyAngleX', Math.sin(t / 5000) * 4);
+    mouthValue *= 0.85;
+    core.setParameterValueById('ParamMouthOpenY', mouthValue);
+
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    const dx = (mouseX - cx) / cx;
+    const dy = (mouseY - cy) / cy;
+    core.setParameterValueById('ParamEyeBallX', dx * 1.0);
+    core.setParameterValueById('ParamEyeBallY', dy * 1.0);
+    core.setParameterValueById('ParamAngleX',   dx * 15);
+    core.setParameterValueById('ParamAngleY', -dy * 15 + Math.sin(t / 4000) * 3);
+  });
+
   // ---------------------------------------------------------------------------
   // Mouse state machine
   // ---------------------------------------------------------------------------
@@ -195,44 +218,34 @@
   });
 
   // ---------------------------------------------------------------------------
-  // Model load
+  // Model load — re-entrant with race guard
   // ---------------------------------------------------------------------------
-  async function loadModel() {
+  let _loadToken = 0;
+  async function loadModelFrom(path) {
+    const myToken = ++_loadToken;
+    let model;
     try {
-      const model = await PIXI.live2d.Live2DModel.from(MODEL_PATH, { autoInteract: false });
-      app.stage.addChild(model);
-
-      const scale = (window.innerHeight * 0.9) / model.height;
-      model.scale.set(scale);
-      model.x = window.innerWidth / 2;
-      model.y = window.innerHeight * 1.0;
-      model.anchor.set(0.5, 1.0);
-      window._live2dModel = model;
-
-      app.ticker.add(() => {
-        const t    = Date.now();
-        const core = model.internalModel.coreModel;
-        core.setParameterValueById('ParamBreath',     Math.sin(t / 1500) * 0.5);
-        core.setParameterValueById('ParamAngleY',     Math.sin(t / 4000) * 8);
-        core.setParameterValueById('ParamBodyAngleX', Math.sin(t / 5000) * 4);
-        mouthValue *= 0.85;
-        core.setParameterValueById('ParamMouthOpenY', mouthValue);
-
-        const cx = window.innerWidth / 2;
-        const cy = window.innerHeight / 2;
-        const dx = (mouseX - cx) / cx;
-        const dy = (mouseY - cy) / cy;
-        core.setParameterValueById('ParamEyeBallX', dx * 1.0);
-        core.setParameterValueById('ParamEyeBallY', dy * 1.0);
-        core.setParameterValueById('ParamAngleX',   dx * 15);
-        core.setParameterValueById('ParamAngleY', -dy * 15 + Math.sin(t / 4000) * 3);
-      });
-
-      startMoodCycling();
-      console.log('model loaded successfully');
-    } catch (err) {
-      console.error('Model load error:', err);
+      model = await PIXI.live2d.Live2DModel.from(path, { autoInteract: false });
+    } catch (err) { console.error('Model load error:', err); return; }
+    // a newer swap started while we awaited → discard this one
+    if (myToken !== _loadToken) {
+      try { model.destroy({ children: true, texture: true, baseTexture: true }); } catch (e) {}
+      return;
     }
+    const old = window._live2dModel;
+    const scale = (window.innerHeight * 0.9) / model.height;
+    model.scale.set(scale);
+    model.x = window.innerWidth / 2;
+    model.y = window.innerHeight * 1.0;
+    model.anchor.set(0.5, 1.0);
+    app.stage.addChild(model);
+    window._live2dModel = model;             // point global at new BEFORE tearing down old
+    if (old) {
+      app.stage.removeChild(old);
+      try { old.destroy({ children: true, texture: true, baseTexture: true }); } catch (e) { console.warn('old model destroy:', e); }
+    }
+    startMoodCycling();
+    console.log('Model loaded:', path);
   }
 
   // ---------------------------------------------------------------------------
@@ -250,7 +263,21 @@
     // 'expression' carries a canonical emotion key resolved via activeMap
     if (m.type === 'reply_expression') applyExpression(resolveExpression(m.expression));
     if (m.type === 'mouth_open')       mouthValue = Math.min(1, Math.max(0, m.value ?? 0.8));
+    if (m.type === 'avatar_changed')   handleAvatarChanged();
   });
+
+  async function handleAvatarChanged() {
+    let cfg;
+    try { cfg = await window.electronAPI.getAvatarConfig(); }
+    catch (e) { console.warn('[avatar] swap aborted — config fetch failed:', e); return; }
+    if (!cfg || !cfg.file_path) { console.warn('[avatar] swap aborted — no file_path'); return; }
+    const pathChanged = cfg.file_path !== MODEL_PATH;
+    MODEL_PATH = cfg.file_path;
+    activeMap  = cfg.expression_map || DEFAULT_EXPRESSION_MAP;
+    moodPoolIndex = 0;
+    if (pathChanged) await loadModelFrom(MODEL_PATH);  // body changed → reload in place
+    else startMoodCycling();                            // same body, new map → just restart cycling
+  }
 
   // Fetch avatar config (file path + expression map) before loading the model.
   // Falls back to DEFAULT_* constants if the backend is unreachable.
@@ -260,7 +287,7 @@
       MODEL_PATH = cfg?.file_path || DEFAULT_MODEL_PATH;
       activeMap  = cfg?.expression_map || DEFAULT_EXPRESSION_MAP;
     } catch (e) { console.warn('[avatar] config fetch failed, using defaults:', e); }
-    loadModel();
+    loadModelFrom(MODEL_PATH);
   })();
   </script>
 </body>
