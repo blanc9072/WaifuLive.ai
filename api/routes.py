@@ -311,8 +311,8 @@ async def chat(
 
 @app.get("/profile")
 async def get_profile(user_id: str = Depends(get_current_user)):
-    avatar_file_path = await db.fetch_avatar_file_path(user_id)
-    return {"avatar_file_path": avatar_file_path}
+    cfg = await db.fetch_avatar_config(user_id)
+    return {"avatar_file_path": cfg["file_path"], "expression_map": cfg["expression_map"]}
 
 
 @app.get("/memory", response_model=MemoryResponse)
