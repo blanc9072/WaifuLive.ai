@@ -28,8 +28,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   transcribe: (audioB64) => ipcRenderer.invoke('api:transcribe', audioB64),
 
   // ── Settings data ─────────────────────────────────────────────────────────
-  loadSettings: ()       => ipcRenderer.invoke('settings:load'),
-  saveSettings: (prefs)  => ipcRenderer.invoke('settings:save', prefs),
+  loadSettings:  ()       => ipcRenderer.invoke('settings:load'),
+  saveSettings:  (prefs)  => ipcRenderer.invoke('settings:save', prefs),
+  reloadAvatar:  ()       => ipcRenderer.invoke('avatar:reload'),
 
   // ── Screen watch — shared state between overlay and system tray ───────────
   getScreenWatch:       ()    => ipcRenderer.invoke('screenwatch:get'),

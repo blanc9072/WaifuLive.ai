@@ -298,11 +298,13 @@ function createLoginWindow() {
   loginWindow.on('closed', () => { loginWindow = null; });
 }
 
-function createModelWindow() {
+async function createModelWindow(bounds = null) {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   modelWindow = new BrowserWindow({
-    width: 400, height: 700,
-    x: width - 420, y: height - 720,
+    width:  bounds?.width  ?? 400,
+    height: bounds?.height ?? 700,
+    x:      bounds?.x      ?? width - 420,
+    y:      bounds?.y      ?? height - 720,
     transparent: true, frame: false,
     alwaysOnTop: true, skipTaskbar: true,
     hasShadow: false, resizable: false,
@@ -316,7 +318,17 @@ function createModelWindow() {
   modelWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   modelWindow.loadFile('src/model.html');
   modelWindow.setIgnoreMouseEvents(true, { forward: true });
-  modelWindow.on('closed', () => { modelWindow = null; });
+  const win = modelWindow;
+  win.on('closed', () => { if (modelWindow === win) modelWindow = null; });
+}
+
+async function reloadModelWindow() {
+  let bounds = null;
+  if (modelWindow && !modelWindow.isDestroyed()) {
+    bounds = modelWindow.getBounds();
+    modelWindow.close();
+  }
+  await createModelWindow(bounds);
 }
 
 function createChatWindow() {
@@ -484,6 +496,8 @@ ipcMain.handle('api:transcribe', async (_, audioB64) => {
   if (!res.ok) throw new Error(`Transcribe ${res.status}: ${await res.text()}`);
   return res.json();
 });
+
+ipcMain.handle('avatar:reload', async () => { await reloadModelWindow(); return { ok: true }; });
 
 ipcMain.handle('avatar:config', async () => {
   try {
