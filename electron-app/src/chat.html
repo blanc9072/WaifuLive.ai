@@ -1075,7 +1075,7 @@
   voiceSelect.addEventListener('change',   _saveSettings);
   avatarSelect.addEventListener('change', async () => {
     await _saveSettings();
-    try { await window.electronAPI.reloadAvatar(); } catch (e) { console.error('[avatar] reload failed', e); }
+    bc.postMessage({ type: 'avatar_changed' });
   });
 
   // Logout
