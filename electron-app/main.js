@@ -256,7 +256,9 @@ function setTrayState(enabled) {
   const icons = _trayIcons();
   tray.setImage(enabled ? icons.on : icons.off);
   tray.setToolTip(enabled ? 'Pistachio — Screen watch: ON' : 'Pistachio — Screen watch: OFF');
-  tray.setContextMenu(Menu.buildFromTemplate([
+  // Store the menu without calling setContextMenu — on macOS setContextMenu
+  // intercepts left-click too, so we pop it up manually on right-click only.
+  tray._contextMenu = Menu.buildFromTemplate([
     { label: enabled ? '● Screen watch ON' : '○ Screen watch OFF', enabled: false },
     { type: 'separator' },
     {
@@ -265,14 +267,15 @@ function setTrayState(enabled) {
     },
     { type: 'separator' },
     { label: 'Quit Pistachio (fully exit)', click: () => quitApp() },
-  ]));
+  ]);
 }
 
 function setupTray() {
   if (tray) return;
   const icons = _trayIcons();
   tray = new Tray(icons.off);
-  tray.on('click', () => setTrayState(!screenWatchEnabled));
+  tray.on('click',       () => setTrayState(!screenWatchEnabled));
+  tray.on('right-click', () => tray.popUpContextMenu(tray._contextMenu));
   setTrayState(false);
 }
 
