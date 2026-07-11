@@ -250,16 +250,14 @@ async def chat(
             )
         except asyncio.TimeoutError:
             # Remove the message we just appended — it never got a response.
-            session._contents.pop()
-            session._db_ids.pop()
+            session.pop_last()
             raise HTTPException(status_code=504, detail="Gemini timed out.")
         except Exception as exc:
             # First multimodal failure: switch to description mode and retry once.
             if req.screenshot and _direct_vision_ok:
                 log.warning("Direct vision rejected (%s) — switching to description fallback.", exc)
                 _direct_vision_ok = False
-                session._contents.pop()
-                session._db_ids.pop()
+                session.pop_last()
 
                 desc = await describe_screen(base64.b64decode(req.screenshot))
                 retry_text = f"[{req.username}]: {req.message}"
@@ -272,13 +270,11 @@ async def chat(
                         timeout=30.0,
                     )
                 except Exception as retry_exc:
-                    session._contents.pop()
-                    session._db_ids.pop()
+                    session.pop_last()
                     log.error("Retry failed: %s", retry_exc)
                     raise HTTPException(status_code=500, detail=str(retry_exc))
             else:
-                session._contents.pop()
-                session._db_ids.pop()
+                session.pop_last()
                 log.error("Generation error: %s", exc)
                 raise HTTPException(status_code=500, detail=str(exc))
 

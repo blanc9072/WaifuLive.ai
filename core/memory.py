@@ -119,9 +119,15 @@ class UserSession:
         Gemini but are NOT stored in the DB — only the text is persisted.
         """
         parts = (extra_parts or []) + [types.Part.from_text(text=text)]
-        self._contents.append(types.Content(role=role, parts=parts))
         db_id = await db.insert_message(self.user_id, role, text)
+        self._contents.append(types.Content(role=role, parts=parts))
         self._db_ids.append(db_id)
+
+    def pop_last(self) -> None:
+        """Remove the most recently appended message from both deques (rollback)."""
+        if self._contents and self._db_ids:
+            self._contents.pop()
+            self._db_ids.pop()
 
     # ── Two-layer memory logic ────────────────────────────────────────────────
 
