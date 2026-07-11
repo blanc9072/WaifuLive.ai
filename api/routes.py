@@ -81,6 +81,7 @@ async def get_current_user(
 # ---------------------------------------------------------------------------
 
 VISION_MODEL = "gemini-2.5-flash"
+MEMORY_MODEL = "gemini-2.5-flash"
 
 # Process-wide flag: flipped to False on first multimodal failure so we
 # silently fall back to the description path without ever retrying that way.
@@ -241,7 +242,7 @@ async def chat(
         )
 
         await session.append("user", message_text, extra_parts)
-        await session.compress_rolling(gemini_client, GEMINI_MODEL)
+        await session.compress_rolling(gemini_client, MEMORY_MODEL)
 
         try:
             reply = await asyncio.wait_for(
@@ -282,7 +283,7 @@ async def chat(
             raise HTTPException(status_code=500, detail="No reply generated.")
 
         await session.append("assistant", reply)
-        asyncio.create_task(session.update_working_memory(gemini_client, GEMINI_MODEL))
+        asyncio.create_task(session.update_working_memory(gemini_client, MEMORY_MODEL))
 
         # TTS — non-fatal: missing voice or synthesis error just omits audio.
         audio_b64: str | None = None
@@ -329,5 +330,5 @@ async def sleep(user_id: str = Depends(get_current_user)):
     """Compress the caller's current session into long-term memory."""
     session = await get_session(user_id)
     async with session.lock:
-        await session.flush(gemini_client, GEMINI_MODEL)
+        await session.flush(gemini_client, MEMORY_MODEL)
     return {"status": "memory saved"}
