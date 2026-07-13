@@ -6,16 +6,11 @@
 <title>waifulive.ai: the companion who looks out for you</title>
 <meta name="description" content="WaifuLive is a customizable desktop AI companion. She notices when you've been at it too long, remembers what matters to you, and checks in without being pushy. Join the waitlist." />
 
-<link rel="icon" type="image/svg+xml" href="favicon.svg" />
-<link rel="alternate icon" href="favicon-32.png" sizes="32x32" />
-<link rel="apple-touch-icon" href="apple-touch-icon.png" />
 
 <meta property="og:title" content="waifulive.ai: the companion who looks out for you" />
 <meta property="og:description" content="A customizable desktop AI companion that notices, remembers, and checks in, on your terms. Join the waitlist." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://waifulive.ai" />
-<meta property="og:image" content="https://waifulive.ai/og-image.png" />
-<meta name="twitter:card" content="summary_large_image" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -90,10 +85,16 @@
   /* avatar stage */
   .stage{ position:relative; aspect-ratio:4/5; border-radius:var(--r-surface); background:radial-gradient(120% 90% at 50% 0%, rgba(244,169,140,0.12), transparent 60%), linear-gradient(180deg,#f3efe0,#eae7d6); border:1px solid var(--line-2); overflow:hidden; box-shadow:var(--shadow-2); }
   .stage::before{ content:""; position:absolute; inset:0; opacity:.5; background-image:linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size:32px 32px; -webkit-mask-image:radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 80%); mask-image:radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 80%); }
-  #live2dContainer{ position:absolute; inset:0; }
-  #live2dContainer canvas{ width:100% !important; height:100% !important; display:block; }
+  .avatar-float{ position:absolute; inset:0; display:grid; place-items:center; animation:float 6.5s ease-in-out infinite; }
+  @keyframes float{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-8px); } }
+  #avatarSvg{ width:66%; max-width:272px; height:auto; overflow:visible; }
+  #headGroup{ transform-box:fill-box; transform-origin:50% 92%; }
+  .lid{ transform-box:fill-box; transform-origin:center top; transform:scaleY(0); animation:blink 5.2s infinite; }
+  @keyframes blink{ 0%,95%,100%{ transform:scaleY(0);} 97%{ transform:scaleY(1);} }
 
   .stage-caption{ position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:space-between; gap:var(--s-2); padding:var(--s-2); font-family:var(--mono); font-size:0.75rem; letter-spacing:0.04em; color:var(--muted); background:linear-gradient(0deg, rgba(244,240,230,0.94), transparent); }
+  .swap-btn{ font-family:var(--mono); font-size:0.6875rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--text); background:var(--bg-elev); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--s-1) var(--s-2); cursor:pointer; transition:border-color .2s, background .2s; }
+  .swap-btn:hover{ border-color:var(--pistachio); background:rgba(111,162,78,0.10); }
 
   /* sections */
   .section{ padding:var(--s-8) 0; }
@@ -195,11 +196,71 @@
         <p class="wl-count" id="waitlistCount" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="wlCountText"></span></p>
       </div>
 
-      <!-- Nicole Live2D model -->
+      <!-- signature: cursor-tracking mascot -->
       <div class="stage" id="stage">
-        <div id="live2dContainer"></div>
+        <div class="avatar-float">
+          <svg id="avatarSvg" viewBox="0 0 240 280" role="img" aria-label="A friendly green-haired companion character whose eyes follow your cursor">
+            <defs>
+              <linearGradient id="hair" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--m-hair-a)"/><stop offset="1" stop-color="var(--m-hair-b)"/></linearGradient>
+              <linearGradient id="hairback" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--m-hair-b)"/><stop offset="1" stop-color="var(--m-hair-c)"/></linearGradient>
+              <linearGradient id="blouse" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdfbf4"/><stop offset="1" stop-color="#efeadb"/></linearGradient>
+            </defs>
+
+            <!-- body (static) -->
+            <path d="M120 214 C 92 214, 74 226, 66 244 C 60 258, 58 270, 58 280 L 182 280 C 182 270, 180 258, 174 244 C 166 226, 148 214, 120 214 Z" fill="url(#blouse)"/>
+            <path d="M120 214 L104 232 L120 244 L136 232 Z" fill="#a9ce7f"/>
+            <path d="M112 216 L120 240 L128 216" fill="none" stroke="#cfe3b4" stroke-width="3" stroke-linecap="round"/>
+
+            <g id="headGroup">
+              <path d="M120 40 C 66 40, 46 82, 46 128 C 46 176, 52 210, 60 236 L 180 236 C 188 210, 194 176, 194 128 C 194 82, 174 40, 120 40 Z" fill="url(#hairback)"/>
+              <rect x="108" y="196" width="24" height="26" rx="12" fill="#f0c9b3"/>
+              <ellipse cx="120" cy="132" rx="66" ry="70" fill="#f8e0cd"/>
+              <ellipse cx="56" cy="140" rx="10" ry="14" fill="#f8e0cd"/><ellipse cx="184" cy="140" rx="10" ry="14" fill="#f8e0cd"/>
+              <ellipse cx="82" cy="160" rx="13" ry="8" fill="#f4a98c" opacity="0.55"/><ellipse cx="158" cy="160" rx="13" ry="8" fill="#f4a98c" opacity="0.55"/>
+              <path d="M78 112 Q94 106 108 112" fill="none" stroke="#8a9a6a" stroke-width="3.2" stroke-linecap="round"/>
+              <path d="M132 112 Q146 106 162 112" fill="none" stroke="#8a9a6a" stroke-width="3.2" stroke-linecap="round"/>
+
+              <ellipse cx="94" cy="140" rx="17" ry="21" fill="#fffdf7"/>
+              <g id="trackL">
+                <circle cx="94" cy="141" r="13" fill="#6fa24e"/><circle cx="94" cy="141" r="7" fill="#2c2a22"/>
+                <circle cx="98" cy="136" r="3.4" fill="#fff"/><circle cx="90" cy="146" r="1.8" fill="#fff" opacity="0.8"/>
+              </g>
+              <path d="M77 130 Q94 120 111 130" fill="none" stroke="#3a3628" stroke-width="3.4" stroke-linecap="round"/>
+              <ellipse class="lid" cx="94" cy="140" rx="18" ry="22" fill="#f8e0cd"/>
+
+              <ellipse cx="146" cy="140" rx="17" ry="21" fill="#fffdf7"/>
+              <g id="trackR">
+                <circle cx="146" cy="141" r="13" fill="#6fa24e"/><circle cx="146" cy="141" r="7" fill="#2c2a22"/>
+                <circle cx="150" cy="136" r="3.4" fill="#fff"/><circle cx="142" cy="146" r="1.8" fill="#fff" opacity="0.8"/>
+              </g>
+              <path d="M129 130 Q146 120 163 130" fill="none" stroke="#3a3628" stroke-width="3.4" stroke-linecap="round"/>
+              <ellipse class="lid" cx="146" cy="140" rx="18" ry="22" fill="#f8e0cd"/>
+
+              <circle cx="120" cy="162" r="1.6" fill="#e0a98c"/>
+              <path d="M112 174 Q120 182 128 174" fill="none" stroke="#b8614e" stroke-width="3" stroke-linecap="round"/>
+
+              <path d="M52 132 C 48 80, 80 46, 120 46 C 160 46, 192 80, 188 132 C 182 116, 172 104, 160 104 C 151 104, 145 112, 140 120 C 136 106, 129 100, 120 100 C 111 100, 104 106, 100 120 C 95 112, 89 104, 80 104 C 68 104, 58 116, 52 132 Z" fill="url(#hair)"/>
+              <path d="M74 96 C 92 80, 148 80, 166 96" fill="none" stroke="#cbe6a8" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+              <path d="M52 132 C 50 154, 52 172, 56 186 C 46 170, 42 150, 44 130 Z" fill="url(#hair)"/>
+              <path d="M188 132 C 190 154, 188 172, 184 186 C 194 170, 198 150, 196 130 Z" fill="url(#hair)"/>
+              <path d="M120 46 C 117 30, 126 23, 135 21 C 128 30, 133 39, 122 48 Z" fill="url(#hair)"/>
+
+              <!-- accessory (swap target) -->
+              <g id="acc-bow">
+                <path d="M160 76 L144 68 L148 86 Z" fill="#f4a98c"/><path d="M160 76 L176 68 L172 86 Z" fill="#f4a98c"/><circle cx="160" cy="77" r="5" fill="#f7c0aa"/>
+              </g>
+              <g id="acc-flower" style="display:none;">
+                <circle cx="158" cy="72" r="5" fill="#f4a98c"/><circle cx="166" cy="76" r="5" fill="#f4a98c"/><circle cx="163" cy="84" r="5" fill="#f4a98c"/><circle cx="153" cy="84" r="5" fill="#f4a98c"/><circle cx="150" cy="76" r="5" fill="#f4a98c"/><circle cx="158" cy="78" r="4" fill="#fbe3d6"/>
+              </g>
+              <g id="acc-clip" style="display:none;">
+                <rect x="150" y="70" width="20" height="8" rx="4" fill="#f4a98c"/><circle cx="154" cy="74" r="2" fill="#fbe3d6"/><circle cx="166" cy="74" r="2" fill="#fbe3d6"/>
+              </g>
+            </g>
+          </svg>
+        </div>
         <div class="stage-caption">
           <span>Her eyes follow your cursor. Move your mouse.</span>
+          <button class="swap-btn" id="swapBtn" type="button">change avatar</button>
         </div>
       </div>
     </section>
@@ -309,9 +370,6 @@
     </footer>
   </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
-<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -322,58 +380,38 @@
   var SUPABASE_ANON_KEY = "";
   var SHOW_COUNTER      = false;  // flip to true once there are real signups worth showing
 
-  // ---- Nicole Live2D model ----
-  async function initLive2D() {
-    if (reduce || typeof PIXI === 'undefined' || typeof PIXI.live2d === 'undefined') return;
-    var stageEl = document.getElementById('stage');
-    var container = document.getElementById('live2dContainer');
-    var W = stageEl.offsetWidth;
-    var H = stageEl.offsetHeight;
+  // ---- mascot: eyes + head follow the cursor ----
+  var svg = document.getElementById('avatarSvg');
+  var trackL = document.getElementById('trackL');
+  var trackR = document.getElementById('trackR');
+  var headG  = document.getElementById('headGroup');
+  window.addEventListener('pointermove', function(e){
+    if(!svg) return;
+    var r = svg.getBoundingClientRect();
+    var cx = r.left + r.width/2, cy = r.top + r.height/2;
+    var dx = Math.max(-1, Math.min(1, (e.clientX - cx) / (window.innerWidth/2)));
+    var dy = Math.max(-1, Math.min(1, (e.clientY - cy) / (window.innerHeight/2)));
+    trackL.setAttribute('transform', 'translate(' + (dx*4) + ',' + (dy*4) + ')');
+    trackR.setAttribute('transform', 'translate(' + (dx*4) + ',' + (dy*4) + ')');
+    if(!reduce) headG.style.transform = 'rotate(' + (dx*3) + 'deg)';
+  }, { passive:true });
 
-    var pixiApp = new PIXI.Application({
-      width: W, height: H,
-      backgroundAlpha: 0,
-      antialias: true,
-      autoDensity: true,
-      resolution: window.devicePixelRatio || 1,
-    });
-    container.appendChild(pixiApp.view);
-
-    var mouseX = W / 2, mouseY = H / 2;
-    stageEl.addEventListener('pointermove', function(e) {
-      var r = stageEl.getBoundingClientRect();
-      mouseX = e.clientX - r.left;
-      mouseY = e.clientY - r.top;
-    }, { passive: true });
-
-    try {
-      var model = await PIXI.live2d.Live2DModel.from('./assets/live2d/Nicole/Nicole.model3.json', { autoInteract: false });
-      var scale = (H * 0.88) / model.height;
-      model.scale.set(scale);
-      model.x = W / 2;
-      model.y = H;
-      model.anchor.set(0.5, 1.0);
-      pixiApp.stage.addChild(model);
-      try { model.expression('Milk Tea'); } catch(e) {}
-
-      pixiApp.ticker.add(function() {
-        var core = model.internalModel.coreModel;
-        var t = Date.now();
-        core.setParameterValueById('ParamBreath',     Math.sin(t / 1500) * 0.5);
-        core.setParameterValueById('ParamBodyAngleX', Math.sin(t / 5000) * 4);
-        var cx = W / 2, cy = H / 2;
-        var dx = (mouseX - cx) / cx;
-        var dy = (mouseY - cy) / cy;
-        core.setParameterValueById('ParamEyeBallX', dx * 1.0);
-        core.setParameterValueById('ParamEyeBallY', dy * 1.0);
-        core.setParameterValueById('ParamAngleX',   dx * 15);
-        core.setParameterValueById('ParamAngleY',   -dy * 15 + Math.sin(t / 4000) * 3);
-      });
-    } catch(e) {
-      console.warn('Nicole Live2D load failed:', e);
-    }
-  }
-  initLive2D();
+  // ---- change avatar: hair tone + accessory ----
+  var variants = [
+    { a:'#b6d98a', b:'#8fbf6a', c:'#79ac54', acc:'acc-bow' },
+    { a:'#a9ce7f', b:'#7fb457', c:'#699a44', acc:'acc-flower' },
+    { a:'#ead9a6', b:'#d8c179', c:'#c2a95f', acc:'acc-clip' }
+  ];
+  var vi = 0, accIds = ['acc-bow','acc-flower','acc-clip'], root = document.documentElement;
+  document.getElementById('swapBtn').addEventListener('click', function(){
+    vi = (vi + 1) % variants.length;
+    var v = variants[vi];
+    root.style.setProperty('--m-hair-a', v.a);
+    root.style.setProperty('--m-hair-b', v.b);
+    root.style.setProperty('--m-hair-c', v.c);
+    accIds.forEach(function(id){ document.getElementById(id).style.display = (id === v.acc) ? '' : 'none'; });
+    if(!reduce && svg && svg.animate){ svg.animate([{transform:'scale(1)'},{transform:'scale(1.04)'},{transform:'scale(1)'}], {duration:240, easing:'ease-out'}); }
+  });
 
   document.getElementById('footerJoin').addEventListener('click', function(){
     setTimeout(function(){ document.getElementById('email').focus(); }, 400);
