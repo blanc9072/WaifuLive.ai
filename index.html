@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>waifulive.ai: the companion who looks out for you</title>
+<meta name="description" content="WaifuLive is a customizable desktop AI companion. She notices when you've been at it too long, remembers what matters to you, and checks in without being pushy. Join the waitlist." />
+
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="alternate icon" href="favicon-32.png" sizes="32x32" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+
+<meta property="og:title" content="waifulive.ai: the companion who looks out for you" />
+<meta property="og:description" content="A customizable desktop AI companion that notices, remembers, and checks in, on your terms. Join the waitlist." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://waifulive.ai" />
+<meta property="og:image" content="https://waifulive.ai/og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<style>
+  :root{
+    --bg:#f4f0e6; --bg-elev:#fbf9f1; --bg-elev-2:#efeadb;
+    --text:#262820; --muted:#5c5f54; --placeholder:#83857a;
+    --pistachio:#6fa24e; --pistachio-mid:#5e8a45; --pistachio-deep:#43682e;
+    --sage-soft:#dce9cb;
+    --blush:#f4a98c; --blush-soft:#fbe3d6;
+    --line:rgba(38,40,32,0.10); --line-2:rgba(38,40,32,0.18);
+    --shadow-1:0 1px 2px rgba(38,40,32,0.05), 0 2px 8px rgba(38,40,32,0.06);
+    --shadow-2:0 8px 24px rgba(38,40,32,0.10);
+    --s-1:8px; --s-2:16px; --s-3:24px; --s-4:32px; --s-6:48px; --s-8:64px;
+    --r-surface:12px; --r-control:6px; --r-icon:8px; --r-pill:999px;
+    /* mascot (swapped by JS) */
+    --m-hair-a:#b6d98a; --m-hair-b:#8fbf6a; --m-hair-c:#79ac54;
+    --display:'Zen Maru Gothic', system-ui, sans-serif;
+    --body:'Zen Kaku Gothic New', system-ui, sans-serif;
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+    --maxw:1152px;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ scroll-behavior:smooth; }
+  body{ font-family:var(--body); background:var(--bg); color:var(--text); font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased; overflow-x:hidden; min-height:100vh; }
+
+  h1{ font-family:var(--display); font-weight:700; font-size:clamp(2rem,5vw,3.5rem); line-height:1.1; letter-spacing:-0.01em; }
+  h2{ font-family:var(--display); font-weight:700; font-size:clamp(1.5rem,3vw,2rem); line-height:1.2; }
+  h3{ font-family:var(--display); font-weight:700; font-size:1.25rem; line-height:1.3; }
+  .lede{ font-size:1.125rem; line-height:1.6; }
+  .label{ font-family:var(--mono); font-size:0.75rem; line-height:1.4; letter-spacing:0.18em; text-transform:uppercase; }
+  a{ color:inherit; text-decoration:none; }
+  :focus-visible{ outline:2px solid var(--pistachio-deep); outline-offset:3px; border-radius:2px; }
+  .wrap{ max-width:var(--maxw); margin:0 auto; padding:0 var(--s-3); }
+
+  /* nav */
+  .nav{ display:flex; align-items:center; justify-content:space-between; padding:var(--s-3) 0; }
+  .wordmark{ font-family:var(--display); font-weight:700; font-size:1.125rem; display:flex; align-items:center; gap:var(--s-1); }
+  .wordmark svg{ width:16px; height:16px; }
+  .nav-cta{ font-family:var(--mono); font-size:0.75rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--pistachio-deep); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--s-1) var(--s-2); transition:border-color .2s, background .2s; }
+  .nav-cta:hover{ border-color:var(--pistachio); background:rgba(111,162,78,0.08); }
+
+  /* hero */
+  .hero{ display:grid; grid-template-columns:1.05fr 0.95fr; gap:var(--s-6); align-items:center; padding:var(--s-6) 0 var(--s-8); }
+  .eyebrow{ color:var(--pistachio-deep); display:inline-flex; align-items:center; gap:var(--s-1); margin-bottom:var(--s-3); }
+  .eyebrow::before{ content:""; width:24px; height:1px; background:var(--pistachio-deep); opacity:.55; }
+  h1 .accent{ color:var(--pistachio-deep); }
+  .hero .lede{ color:var(--muted); max-width:46ch; margin:var(--s-3) 0 var(--s-4); }
+
+  .waitlist{ display:flex; gap:var(--s-1); max-width:456px; flex-wrap:wrap; }
+  .waitlist input[type=email]{ flex:1 1 224px; min-width:0; background:var(--bg-elev); border:1px solid var(--line-2); color:var(--text); font-family:var(--body); font-size:1rem; padding:var(--s-2); border-radius:var(--r-control); transition:border-color .2s, box-shadow .2s; }
+  .waitlist input[type=email]::placeholder{ color:var(--placeholder); }
+  .waitlist input[type=email]:focus{ outline:none; border-color:var(--pistachio); box-shadow:0 0 0 3px rgba(111,162,78,0.18); }
+  .waitlist input[type=email]:disabled{ opacity:.6; }
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--s-1); font-family:var(--body); font-weight:700; font-size:1rem; cursor:pointer; color:#f7f5ec; background:var(--pistachio-mid); border:1px solid transparent; border-radius:var(--r-control); padding:var(--s-2) var(--s-3); box-shadow:var(--shadow-1); transition:background .2s, box-shadow .2s; }
+  .btn:hover:not(:disabled){ background:var(--pistachio-deep); box-shadow:var(--shadow-2); }
+  .btn:active:not(:disabled){ transform:translateY(1px); }
+  .btn:disabled{ cursor:default; opacity:.75; }
+  .spinner{ width:16px; height:16px; animation:spin .8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .form-note{ font-family:var(--mono); font-size:0.75rem; letter-spacing:0.02em; color:var(--placeholder); margin-top:var(--s-2); }
+  .form-status{ display:none; margin-top:var(--s-2); font-size:0.9375rem; align-items:center; gap:var(--s-1); }
+  .form-status.show{ display:flex; }
+  .form-status.ok{ color:var(--pistachio-deep); font-weight:700; }
+  .form-status.err{ color:#a23a2e; }
+  .wl-count{ display:none; align-items:center; gap:var(--s-1); margin-top:var(--s-2); color:var(--muted); font-size:0.875rem; }
+  .wl-count.show{ display:flex; }
+  .wl-count .dot{ width:8px; height:8px; border-radius:var(--r-pill); background:var(--pistachio); flex:none; }
+
+  /* avatar stage */
+  .stage{ position:relative; aspect-ratio:4/5; border-radius:var(--r-surface); background:radial-gradient(120% 90% at 50% 0%, rgba(244,169,140,0.12), transparent 60%), linear-gradient(180deg,#f3efe0,#eae7d6); border:1px solid var(--line-2); overflow:hidden; box-shadow:var(--shadow-2); }
+  .stage::before{ content:""; position:absolute; inset:0; opacity:.5; background-image:linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size:32px 32px; -webkit-mask-image:radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 80%); mask-image:radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 80%); }
+  #live2dContainer{ position:absolute; inset:0; }
+  #live2dContainer canvas{ width:100% !important; height:100% !important; display:block; }
+
+  .stage-caption{ position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:space-between; gap:var(--s-2); padding:var(--s-2); font-family:var(--mono); font-size:0.75rem; letter-spacing:0.04em; color:var(--muted); background:linear-gradient(0deg, rgba(244,240,230,0.94), transparent); }
+
+  /* sections */
+  .section{ padding:var(--s-8) 0; }
+  .section-head{ color:var(--muted); margin-bottom:var(--s-4); }
+  .cards{ display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:var(--s-3); }
+  .card{ background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--r-surface); padding:var(--s-3); box-shadow:var(--shadow-1); transition:border-color .2s, box-shadow .2s; }
+  .card:hover{ border-color:var(--line-2); box-shadow:var(--shadow-2); }
+  .card .ico{ width:40px; height:40px; border-radius:var(--r-icon); margin-bottom:var(--s-2); display:grid; place-items:center; background:var(--sage-soft); border:1px solid var(--line-2); }
+  .card h3{ margin-bottom:var(--s-1); }
+  .card p{ color:var(--muted); font-size:1rem; }
+
+  /* preview (MacBook) */
+  .preview{ display:grid; grid-template-columns:0.85fr 1.15fr; gap:var(--s-6); align-items:center; }
+  .preview h2{ margin-bottom:var(--s-2); }
+  .preview p{ color:var(--muted); max-width:44ch; }
+  .preview-media{ width:100%; }
+  .media-label{ color:var(--muted); display:block; margin-bottom:var(--s-2); }
+  .laptop{ width:100%; max-width:600px; margin:0 auto; }
+  .laptop-lid{ position:relative; background:#2a2c24; border-radius:12px 12px 0 0; padding:var(--s-1); box-shadow:var(--shadow-2); }
+  .laptop-cam{ position:absolute; top:3px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:var(--r-pill); background:#54564c; }
+  .screen{ position:relative; aspect-ratio:16/10; border-radius:var(--r-control); overflow:hidden; background:linear-gradient(180deg,#fbf9f1,#f2eee1); display:flex; flex-direction:column; }
+  .app-bar{ display:flex; align-items:center; justify-content:space-between; gap:var(--s-2); padding:var(--s-1) var(--s-2); border-bottom:1px solid var(--line); background:var(--bg-elev); }
+  .app-dots{ display:flex; gap:var(--s-1); }
+  .app-dot{ width:8px; height:8px; border-radius:var(--r-pill); background:var(--line-2); }
+  .app-title{ font-family:var(--mono); font-size:0.6875rem; letter-spacing:0.06em; color:var(--muted); display:flex; align-items:center; gap:var(--s-1); }
+  .app-online{ width:6px; height:6px; border-radius:var(--r-pill); background:var(--pistachio); }
+  .chat{ flex:1; padding:var(--s-3); display:flex; flex-direction:column; gap:var(--s-1); justify-content:flex-end; overflow:hidden; }
+  .bubble{ max-width:56%; padding:var(--s-1) var(--s-2); border-radius:var(--r-surface); font-size:0.875rem; line-height:1.4; opacity:0; animation:rise .5s ease forwards; }
+  .bubble.them{ align-self:flex-start; background:var(--bg-elev); border:1px solid var(--line-2); color:var(--text); border-bottom-left-radius:var(--r-control); }
+  .bubble.me{ align-self:flex-end; color:#f7f5ec; background:var(--pistachio-mid); border-bottom-right-radius:var(--r-control); }
+  .bubble:nth-child(1){ animation-delay:.3s; } .bubble:nth-child(2){ animation-delay:1s; }
+  .bubble:nth-child(3){ animation-delay:1.7s; } .bubble:nth-child(4){ animation-delay:2.6s; }
+  @keyframes rise{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
+  .laptop-base{ position:relative; height:16px; background:linear-gradient(180deg,#e7e2d2,#cfc9b7); border:1px solid var(--line-2); border-top:none; border-radius:0 0 12px 12px; }
+  .laptop-base::before{ content:""; position:absolute; top:0; left:50%; transform:translateX(-50%); width:64px; height:5px; background:var(--line-2); border-radius:0 0 var(--r-control) var(--r-control); }
+
+  /* FAQ */
+  .faq{ display:flex; flex-direction:column; gap:var(--s-1); max-width:760px; }
+  .faq details{ background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--r-surface); padding:var(--s-2) var(--s-3); transition:border-color .2s; }
+  .faq details[open]{ border-color:var(--line-2); }
+  .faq summary{ cursor:pointer; font-family:var(--display); font-weight:700; font-size:1.0625rem; list-style:none; display:flex; justify-content:space-between; align-items:center; gap:var(--s-2); }
+  .faq summary::-webkit-details-marker{ display:none; }
+  .faq summary::after{ content:""; width:9px; height:9px; border-right:2px solid var(--muted); border-bottom:2px solid var(--muted); transform:rotate(45deg); transition:transform .2s; flex:none; }
+  .faq details[open] summary::after{ transform:rotate(-135deg); }
+  .faq p{ color:var(--muted); margin-top:var(--s-2); font-size:1rem; }
+
+  /* footer */
+  footer{ border-top:1px solid var(--line); padding:var(--s-6) 0; }
+  .foot-grid{ display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s-3); flex-wrap:wrap; }
+  .foot-mark{ font-family:var(--display); font-weight:700; font-size:1.0625rem; margin-bottom:var(--s-1); display:flex; align-items:center; gap:var(--s-1); }
+  .foot-mark svg{ width:15px; height:15px; }
+  .foot-note{ color:var(--muted); font-size:0.875rem; max-width:38ch; }
+  .foot-copy{ font-family:var(--mono); font-size:0.75rem; color:var(--placeholder); margin-top:var(--s-3); }
+
+  @media (max-width:900px){
+    .hero{ grid-template-columns:1fr; gap:var(--s-4); padding:var(--s-4) 0 var(--s-6); }
+    .stage{ max-width:420px; margin:0 auto; }
+    .preview{ grid-template-columns:1fr; gap:var(--s-4); }
+    .preview .preview-copy{ order:1; }
+  }
+  @media (max-width:600px){
+    .section{ padding:var(--s-6) 0; }
+    .nav{ padding:var(--s-2) 0; }
+    .foot-grid{ flex-direction:column; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{ animation:none !important; transition:none !important; scroll-behavior:auto; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="nav">
+      <div class="wordmark">
+        <svg viewBox="0 0 24 24" fill="#e5484d" aria-hidden="true"><path d="M12 21.2 C 6 16.5, 2.5 13, 2.5 8.6 C 2.5 5.6, 4.8 3.6, 7.4 3.6 C 9.2 3.6, 10.8 4.6, 12 6.3 C 13.2 4.6, 14.8 3.6, 16.6 3.6 C 19.2 3.6, 21.5 5.6, 21.5 8.6 C 21.5 13, 18 16.5, 12 21.2 Z"/></svg>
+        waifulive
+      </div>
+      <a href="#waitlist" class="nav-cta">join waitlist</a>
+    </nav>
+
+    <!-- ================= HERO ================= -->
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow label">coming soon</span>
+        <h1>the companion who <span class="accent">looks out for you</span>.</h1>
+        <p class="lede">
+          waifulive is a customizable desktop companion. she notices when you've been at
+          it too long, remembers the stuff that matters to you, and checks in without being
+          pushy. you decide how often, and you can tell her to back off anytime.
+        </p>
+
+        <form class="waitlist" id="waitlistForm" novalidate>
+          <label for="email" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">Email address</label>
+          <input type="email" id="email" name="email" placeholder="you@email.com" autocomplete="email" required />
+          <button type="submit" class="btn" id="submitBtn"><span class="btn-label">notify me</span></button>
+        </form>
+        <p class="form-note" id="formNote">One email when the waitlist opens. No spam, no sharing your address.</p>
+        <p class="form-status" id="formStatus" role="status" aria-live="polite"></p>
+        <p class="wl-count" id="waitlistCount" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="wlCountText"></span></p>
+      </div>
+
+      <!-- Nicole Live2D model -->
+      <div class="stage" id="stage">
+        <div id="live2dContainer"></div>
+        <div class="stage-caption">
+          <span>Her eyes follow your cursor. Move your mouse.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= WHAT IT IS ================= -->
+    <section class="section" id="about">
+      <div class="section-head label">what she does</div>
+      <div class="cards">
+        <div class="card">
+          <div class="ico" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--pistachio-deep)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.2 C 6 16.5, 2.5 13, 2.5 8.6 C 2.5 5.6, 4.8 3.6, 7.4 3.6 C 9.2 3.6, 10.8 4.6, 12 6.3 C 13.2 4.6, 14.8 3.6, 16.6 3.6 C 19.2 3.6, 21.5 5.6, 21.5 8.6 C 21.5 13, 18 16.5, 12 21.2 Z"/></svg>
+          </div>
+          <h3>She looks out for you</h3>
+          <p>When you've been staring at the screen for hours, she'll say something. A nudge to eat, stretch, or take a break. She actually pays attention to how you're doing.</p>
+        </div>
+        <div class="card">
+          <div class="ico" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--pistachio-deep)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
+          </div>
+          <h3>She notices and remembers</h3>
+          <p>She can see what's on your screen and keeps track of what matters to you, so she isn't starting from scratch every time. She'll only message you first if you've said that's okay.</p>
+        </div>
+        <div class="card">
+          <div class="ico" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--pistachio-deep)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <h3>She's yours to shape</h3>
+          <p>Pick her look, her voice, her personality. Change any of it whenever you want. She fits around your life, not the other way around.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CONVERSATION PREVIEW ================= -->
+    <section class="section">
+      <div class="preview">
+        <div class="preview-copy">
+          <h2>Text or talk, whenever.</h2>
+          <p>Talk out loud or type. She remembers your past conversations and knows what you were up to, so you can just pick up where you left off.</p>
+        </div>
+        <div class="preview-media">
+          <span class="media-label label">Preview</span>
+          <div class="laptop">
+            <div class="laptop-lid">
+              <span class="laptop-cam" aria-hidden="true"></span>
+              <div class="screen">
+                <div class="app-bar" aria-hidden="true">
+                  <span class="app-dots"><span class="app-dot"></span><span class="app-dot"></span><span class="app-dot"></span></span>
+                  <span class="app-title"><span class="app-online"></span> waifulive</span>
+                </div>
+                <!-- Replace .chat with a real screen recording when ready:
+                     <video src="demo.mp4" autoplay muted loop playsinline
+                            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"></video> -->
+                <div class="chat" aria-hidden="true">
+                  <div class="bubble them">you've been heads-down for two hours straight</div>
+                  <div class="bubble me">almost done, one more bug</div>
+                  <div class="bubble them">that's the third "one more bug" lol. grab some water, i'll be here</div>
+                  <div class="bubble me">ok ok, fair</div>
+                </div>
+              </div>
+            </div>
+            <div class="laptop-base" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= FAQ ================= -->
+    <section class="section" id="faq">
+      <div class="section-head label">good questions</div>
+      <div class="faq">
+        <details>
+          <summary>Is she always watching my screen?</summary>
+          <p>No. She can't see your screen until you switch that on, and you can turn it back off whenever you want. When it's off, she just doesn't see it.</p>
+        </details>
+        <details>
+          <summary>Where does my data go?</summary>
+          <p>Your voice gets transcribed right on your own computer. The chat itself, and anything she reads off your screen, runs through Google's Gemini, and your conversations get saved so she can remember you next time. We don't sell your data or use it to advertise to you.</p>
+        </details>
+        <details>
+          <summary>Isn't an AI companion kind of a lot?</summary>
+          <p>She's honest about being an AI, she only does what you've allowed, and she's meant to make your day a little better, not eat it up or stand in for real people. You decide how present she is.</p>
+        </details>
+        <details>
+          <summary>How much will it cost?</summary>
+          <p>Still figuring that out. If you're on the waitlist, you'll hear about pricing first and get in before everyone else.</p>
+        </details>
+        <details>
+          <summary>What do I need to run it?</summary>
+          <p>It's an app you download and run on your own computer, not a website you log into. She sits on your screen while you get on with everything else.</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- ================= FOOTER ================= -->
+    <footer id="waitlist">
+      <div class="foot-grid">
+        <div>
+          <div class="foot-mark">
+            <svg viewBox="0 0 24 24" fill="#e5484d" aria-hidden="true"><path d="M12 21.2 C 6 16.5, 2.5 13, 2.5 8.6 C 2.5 5.6, 4.8 3.6, 7.4 3.6 C 9.2 3.6, 10.8 4.6, 12 6.3 C 13.2 4.6, 14.8 3.6, 16.6 3.6 C 19.2 3.6, 21.5 5.6, 21.5 8.6 C 21.5 13, 18 16.5, 12 21.2 Z"/></svg>
+            waifulive.ai
+          </div>
+          <div class="foot-note">A customizable desktop AI companion. Warm, private to you, and built to stay in your corner.</div>
+        </div>
+        <a href="#email" class="nav-cta" id="footerJoin">join the waitlist</a>
+      </div>
+      <div class="foot-copy">© 2026 WaifuLive.ai. All rights reserved.</div>
+    </footer>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- config: fill these in once your Supabase waitlist table exists ----
+  var SUPABASE_URL      = "";     // e.g. "https://xxxx.supabase.co"
+  var SUPABASE_ANON_KEY = "";
+  var SHOW_COUNTER      = false;  // flip to true once there are real signups worth showing
+
+  // ---- Nicole Live2D model ----
+  async function initLive2D() {
+    if (reduce || typeof PIXI === 'undefined' || typeof PIXI.live2d === 'undefined') return;
+    var stageEl = document.getElementById('stage');
+    var container = document.getElementById('live2dContainer');
+    var W = stageEl.offsetWidth;
+    var H = stageEl.offsetHeight;
+
+    var pixiApp = new PIXI.Application({
+      width: W, height: H,
+      backgroundAlpha: 0,
+      antialias: true,
+      autoDensity: true,
+      resolution: window.devicePixelRatio || 1,
+    });
+    container.appendChild(pixiApp.view);
+
+    var mouseX = W / 2, mouseY = H / 2;
+    stageEl.addEventListener('pointermove', function(e) {
+      var r = stageEl.getBoundingClientRect();
+      mouseX = e.clientX - r.left;
+      mouseY = e.clientY - r.top;
+    }, { passive: true });
+
+    try {
+      var model = await PIXI.live2d.Live2DModel.from('./assets/live2d/Nicole/Nicole.model3.json', { autoInteract: false });
+      var scale = (H * 0.88) / model.height;
+      model.scale.set(scale);
+      model.x = W / 2;
+      model.y = H;
+      model.anchor.set(0.5, 1.0);
+      pixiApp.stage.addChild(model);
+      try { model.expression('Milk Tea'); } catch(e) {}
+
+      pixiApp.ticker.add(function() {
+        var core = model.internalModel.coreModel;
+        var t = Date.now();
+        core.setParameterValueById('ParamBreath',     Math.sin(t / 1500) * 0.5);
+        core.setParameterValueById('ParamBodyAngleX', Math.sin(t / 5000) * 4);
+        var cx = W / 2, cy = H / 2;
+        var dx = (mouseX - cx) / cx;
+        var dy = (mouseY - cy) / cy;
+        core.setParameterValueById('ParamEyeBallX', dx * 1.0);
+        core.setParameterValueById('ParamEyeBallY', dy * 1.0);
+        core.setParameterValueById('ParamAngleX',   dx * 15);
+        core.setParameterValueById('ParamAngleY',   -dy * 15 + Math.sin(t / 4000) * 3);
+      });
+    } catch(e) {
+      console.warn('Nicole Live2D load failed:', e);
+    }
+  }
+  initLive2D();
+
+  document.getElementById('footerJoin').addEventListener('click', function(){
+    setTimeout(function(){ document.getElementById('email').focus(); }, 400);
+  });
+
+  // ---- waitlist counter: reads the real count from Supabase, hidden until SHOW_COUNTER=true ----
+  var countWrap = document.getElementById('waitlistCount');
+  var countText = document.getElementById('wlCountText');
+  var currentCount = null;
+  function renderCount(n){
+    currentCount = n;
+    countText.textContent = n.toLocaleString() + (n === 1 ? ' person is already waiting' : ' people are already waiting');
+    countWrap.classList.add('show');
+  }
+  async function loadCount(){
+    if(!SHOW_COUNTER || !SUPABASE_URL) return;
+    try{
+      var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/waitlist_count', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', apikey:SUPABASE_ANON_KEY, Authorization:'Bearer ' + SUPABASE_ANON_KEY },
+        body:'{}'
+      });
+      if(!res.ok) return;
+      var n = await res.json();
+      if(typeof n === 'number' && n > 0) renderCount(n);
+    }catch(e){ /* stay hidden if it fails */ }
+  }
+  loadCount();
+
+  // ---- waitlist submit ----
+  var form = document.getElementById('waitlistForm');
+  var input = document.getElementById('email');
+  var btn = document.getElementById('submitBtn');
+  var note = document.getElementById('formNote');
+  var status = document.getElementById('formStatus');
+
+  var SPINNER = '<svg class="spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="rgba(247,245,236,0.35)" stroke-width="3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="#f7f5ec" stroke-width="3" stroke-linecap="round"/></svg>';
+  var CHECK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+  function validEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+  function setLoading(on){
+    btn.disabled = on; input.disabled = on;
+    btn.innerHTML = on ? (SPINNER + '<span class="btn-label">joining\u2026</span>') : '<span class="btn-label">notify me</span>';
+  }
+  function showStatus(kind, html){ status.className = 'form-status show ' + kind; status.innerHTML = html; }
+
+  async function submitEmail(email){
+    if(SUPABASE_URL){
+      var res = await fetch(SUPABASE_URL + '/rest/v1/waitlist', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', apikey:SUPABASE_ANON_KEY, Authorization:'Bearer ' + SUPABASE_ANON_KEY, Prefer:'return=minimal' },
+        body:JSON.stringify({ email:email })
+      });
+      if(!res.ok) throw new Error('request failed');
+      return;
+    }
+    await new Promise(function(r){ setTimeout(r, 600); });
+  }
+
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    var val = input.value.trim();
+    if(!validEmail(val)){ input.focus(); showStatus('err', 'That email doesn\u2019t look right. Mind checking it?'); return; }
+    status.className = 'form-status';
+    setLoading(true);
+    try{
+      await submitEmail(val);
+      form.style.display = 'none'; note.style.display = 'none';
+      showStatus('ok', CHECK + '<span>You\u2019re on the list. We\u2019ll email you when it\u2019s ready.</span>');
+      if(currentCount !== null) renderCount(currentCount + 1);
+    }catch(err){
+      setLoading(false);
+      showStatus('err', 'Something went wrong. Give it another try in a sec.');
+    }
+  });
+})();
+</script>
+</body>
+</html>

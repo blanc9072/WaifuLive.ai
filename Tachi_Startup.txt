@@ -36,20 +36,6 @@ Terminal 2 — Electron desktop app:
       Cmd+Shift+O  toggle model visibility   (Windows: Ctrl+Shift+O)
       Cmd+Shift+M  toggle mic (voice mode)   (Windows: Ctrl+Shift+M)
 
+Terminal 3 - Website:
 
-Optional — Flutter web client (browser-based alternative UI):
-
-    cd ~/Documents/Real\ Waifu\ copy/flutter_app
-    flutter run -d chrome
-
-    Windows 11 (PowerShell):
-      cd "C:\Users\andre\Dev\Real Waifu copy\flutter_app"
-      flutter run -d chrome
-
-    Needs the static asset server if the Live2D model doesn't load:
-      cd ~/Documents/Real\ Waifu\ copy/flutter_app/web
-      python3 -m http.server 8080
-
-      Windows 11 (PowerShell):
-        cd "C:\Users\andre\Dev\Real Waifu copy\flutter_app\web"
-        python -m http.server 8080
+    cd "/Users/andrewzeng/Documents/Real Waifu copy" && python3 -m http.server 8080
