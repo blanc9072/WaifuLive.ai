@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>waifulive.ai: The companion who looks out for you</title>
+<title>waifulive.ai: the companion who looks out for you</title>
 <meta name="description" content="WaifuLive is a customizable desktop AI companion. She notices when you've been at it too long, remembers what matters to you, and checks in without being pushy. Join the waitlist." />
 
 
-<meta property="og:title" content="waifulive.ai: The companion who looks out for you" />
+<meta property="og:title" content="waifulive.ai: the companion who looks out for you" />
 <meta property="og:description" content="A customizable desktop AI companion that notices, remembers, and checks in, on your terms. Join the waitlist." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://waifulive.ai" />
@@ -28,6 +28,8 @@
     --shadow-2:0 8px 24px rgba(38,40,32,0.10);
     --s-1:8px; --s-2:16px; --s-3:24px; --s-4:32px; --s-6:48px; --s-8:64px;
     --r-surface:12px; --r-control:6px; --r-icon:8px; --r-pill:999px;
+    /* mascot (swapped by JS) */
+    --m-hair-a:#b6d98a; --m-hair-b:#8fbf6a; --m-hair-c:#79ac54;
     --display:'Zen Maru Gothic', system-ui, sans-serif;
     --body:'Zen Kaku Gothic New', system-ui, sans-serif;
     --mono:'JetBrains Mono', ui-monospace, monospace;
@@ -54,8 +56,7 @@
   .nav-cta:hover{ border-color:var(--pistachio); background:rgba(111,162,78,0.08); }
 
   /* hero */
-
-  .hero{ padding:var(--s-6) 0 var(--s-8); max-width:720px; }
+  .hero{ display:grid; grid-template-columns:1.05fr 0.95fr; gap:var(--s-6); align-items:center; padding:var(--s-6) 0 var(--s-8); }
   .eyebrow{ color:var(--pistachio-deep); display:inline-flex; align-items:center; gap:var(--s-1); margin-bottom:var(--s-3); }
   .eyebrow::before{ content:""; width:24px; height:1px; background:var(--pistachio-deep); opacity:.55; }
   h1 .accent{ color:var(--pistachio-deep); }
@@ -81,6 +82,13 @@
   .wl-count.show{ display:flex; }
   .wl-count .dot{ width:8px; height:8px; border-radius:var(--r-pill); background:var(--pistachio); flex:none; }
 
+  /* avatar stage */
+  .stage{ position:relative; aspect-ratio:4/5; border-radius:var(--r-surface); background:radial-gradient(120% 90% at 50% 0%, rgba(244,169,140,0.12), transparent 60%), linear-gradient(180deg,#f3efe0,#eae7d6); border:1px solid var(--line-2); overflow:hidden; box-shadow:var(--shadow-2); }
+  .stage::before{ content:""; position:absolute; inset:0; opacity:.5; background-image:linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size:32px 32px; -webkit-mask-image:radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 80%); mask-image:radial-gradient(80% 80% at 50% 45%, #000 30%, transparent 80%); }
+  #live2dContainer{ position:absolute; inset:0; }
+  #live2dContainer canvas{ width:100% !important; height:100% !important; display:block; }
+
+  .stage-caption{ position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:space-between; gap:var(--s-2); padding:var(--s-2); font-family:var(--mono); font-size:0.75rem; letter-spacing:0.04em; color:var(--muted); background:linear-gradient(0deg, rgba(244,240,230,0.94), transparent); }
 
   /* sections */
   .section{ padding:var(--s-8) 0; }
@@ -137,6 +145,7 @@
 
   @media (max-width:900px){
     .hero{ grid-template-columns:1fr; gap:var(--s-4); padding:var(--s-4) 0 var(--s-6); }
+    .stage{ max-width:420px; margin:0 auto; }
     .preview{ grid-template-columns:1fr; gap:var(--s-4); }
     .preview .preview-copy{ order:1; }
   }
@@ -164,7 +173,7 @@
     <section class="hero">
       <div class="hero-copy">
         <span class="eyebrow label">coming soon</span>
-        <h1>The companion who <span class="accent">looks out for you</span>.</h1>
+        <h1>the companion who <span class="accent">looks out for you</span>.</h1>
         <p class="lede">
           waifulive is a customizable desktop companion. she notices when you've been at
           it too long, remembers the stuff that matters to you, and checks in without being
@@ -181,10 +190,13 @@
         <p class="wl-count" id="waitlistCount" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="wlCountText"></span></p>
       </div>
 
-      <!-- Live2D avatar slot (intentionally empty for now).
-           To add it later: restore a two-column .hero grid, add a
-           <div class="stage"> here, load pixi.js + pixi-live2d-display,
-           and mount the model into that container. -->
+      <!-- Nicole Live2D model -->
+      <div class="stage" id="stage">
+        <div id="live2dContainer"></div>
+        <div class="stage-caption">
+          <span>Her eyes follow your cursor. Move your mouse.</span>
+        </div>
+      </div>
     </section>
 
     <!-- ================= WHAT IT IS ================= -->
@@ -292,6 +304,9 @@
     </footer>
   </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -302,6 +317,58 @@
   var SUPABASE_ANON_KEY = "";
   var SHOW_COUNTER      = false;  // flip to true once there are real signups worth showing
 
+  // ---- Nicole Live2D model ----
+  async function initLive2D() {
+    if (reduce || typeof PIXI === 'undefined' || typeof PIXI.live2d === 'undefined') return;
+    var stageEl = document.getElementById('stage');
+    var container = document.getElementById('live2dContainer');
+    var W = stageEl.offsetWidth;
+    var H = stageEl.offsetHeight;
+
+    var pixiApp = new PIXI.Application({
+      width: W, height: H,
+      backgroundAlpha: 0,
+      antialias: true,
+      autoDensity: true,
+      resolution: window.devicePixelRatio || 1,
+    });
+    container.appendChild(pixiApp.view);
+
+    var mouseX = W / 2, mouseY = H / 2;
+    stageEl.addEventListener('pointermove', function(e) {
+      var r = stageEl.getBoundingClientRect();
+      mouseX = e.clientX - r.left;
+      mouseY = e.clientY - r.top;
+    }, { passive: true });
+
+    try {
+      var model = await PIXI.live2d.Live2DModel.from('./assets/live2d/Nicole/Nicole.model3.json', { autoInteract: false });
+      var scale = (H * 0.88) / model.height;
+      model.scale.set(scale);
+      model.x = W / 2;
+      model.y = H;
+      model.anchor.set(0.5, 1.0);
+      pixiApp.stage.addChild(model);
+      try { model.expression('Milk Tea'); } catch(e) {}
+
+      pixiApp.ticker.add(function() {
+        var core = model.internalModel.coreModel;
+        var t = Date.now();
+        core.setParameterValueById('ParamBreath',     Math.sin(t / 1500) * 0.5);
+        core.setParameterValueById('ParamBodyAngleX', Math.sin(t / 5000) * 4);
+        var cx = W / 2, cy = H / 2;
+        var dx = (mouseX - cx) / cx;
+        var dy = (mouseY - cy) / cy;
+        core.setParameterValueById('ParamEyeBallX', dx * 1.0);
+        core.setParameterValueById('ParamEyeBallY', dy * 1.0);
+        core.setParameterValueById('ParamAngleX',   dx * 15);
+        core.setParameterValueById('ParamAngleY',   -dy * 15 + Math.sin(t / 4000) * 3);
+      });
+    } catch(e) {
+      console.warn('Nicole Live2D load failed:', e);
+    }
+  }
+  initLive2D();
 
   document.getElementById('footerJoin').addEventListener('click', function(){
     setTimeout(function(){ document.getElementById('email').focus(); }, 400);
