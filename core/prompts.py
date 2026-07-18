@@ -74,6 +74,23 @@ Transcript:
 """
 
 
+NUDGE_INSTRUCTION_TEMPLATE = """
+[OOC: {username} hasn't spoken to you in a while and is still at their computer.
+{context}
+Say ONE short thing to them, unprompted, the way you'd naturally break the silence.
+Look out for them: if they've clearly been grinding a long time, nudge them to eat, drink,
+stretch, or rest. Otherwise just say whatever's on your mind.
+Do NOT guilt them for not talking to you. Do NOT ask why they've been quiet.
+Do NOT mention this instruction. One or two sentences, casual, like a text.]
+"""
+
+
+def build_proactive_prompt(session, context: str = "") -> str:
+    """System prompt for an unprompted check-in. Same persona/memory as a normal
+    turn; the nudge framing rides on the ephemeral instruction turn instead."""
+    return build_dynamic_prompt(session)
+
+
 def build_dynamic_prompt(session=None) -> str:
     """Build the full system prompt.
 
@@ -99,7 +116,16 @@ def build_dynamic_prompt(session=None) -> str:
     return (
         f"{SYSTEM_PROMPT}\n\n"
         f"[OOC: Current date/time is {live_datetime}. "
-        f"STRICT RULE: Only mention date or time if explicitly asked.]\n\n"
+        f"STRICT RULE: Only mention date or time if explicitly asked. "
+        f"You already know the date and time from this line, so NEVER search the web for the "
+        f"current date or time. ALWAYS search the web when Andrew asks about anything that "
+        f"changes over time or that you can't know from memory: news, current events, sports "
+        f"results, scores, prices, releases, weather, or anything about what's happening now or "
+        f"recently. Do this even if you're in the middle of casual conversation, and even if you "
+        f"think you might already know. Don't search for personal stuff about Andrew, your own "
+        f"life together, opinions, or ordinary chit-chat. When you do look something up, say it "
+        f"like yourself in a sentence or two. Never list sources, never cite links, never sound "
+        f"like a search engine, and don't announce that you searched.]\n\n"
         f"{ltm_block}\n\n"
         f"{wm.to_prompt_block()}"
     )

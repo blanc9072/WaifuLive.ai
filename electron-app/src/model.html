@@ -266,6 +266,16 @@
     if (m.type === 'avatar_changed')   handleAvatarChanged();
   });
 
+  if (window.electronAPI.onNudge) {
+    window.electronAPI.onNudge((data) => {
+      if (data?.working_memory?.mood) {
+        currentMoodKey = moodToPool(data.working_memory.mood);
+        moodPoolIndex  = 0;
+        startMoodCycling();
+      }
+    });
+  }
+
   async function handleAvatarChanged() {
     let cfg;
     try { cfg = await window.electronAPI.getAvatarConfig(); }

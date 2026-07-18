@@ -28,7 +28,7 @@ SAFETY_SETTINGS = [
 ]
 
 
-async def generate_reply(chat_session: list[types.Content], system_prompt: str) -> str | None:
+async def generate_reply(chat_session: list[types.Content], system_prompt: str, grounding: bool = True) -> str | None:
     """Send chat history to Gemini and return the reply text, or None if blocked."""
     response = await asyncio.wait_for(
         gemini_client.aio.models.generate_content(
@@ -40,6 +40,7 @@ async def generate_reply(chat_session: list[types.Content], system_prompt: str) 
                 temperature=TEMPERATURE,
                 stop_sequences=["[blanc2]:", "[Pistachio.ai]:"],
                 safety_settings=SAFETY_SETTINGS,
+                tools=[types.Tool(google_search=types.GoogleSearch())] if grounding else None,
             ),
         ),
         timeout=30.0,

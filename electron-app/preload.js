@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Backend proxy (main injects the token before forwarding) ─────────────
   sendChat:   (payload)  => ipcRenderer.invoke('api:chat',       payload),
   transcribe: (audioB64) => ipcRenderer.invoke('api:transcribe', audioB64),
+  nudge:      (payload)  => ipcRenderer.invoke('api:nudge',      payload),
+  onNudge:    (cb)       => ipcRenderer.on('nudge', (_, data) => cb(data)),
 
   // ── Settings data ─────────────────────────────────────────────────────────
   loadSettings:  ()       => ipcRenderer.invoke('settings:load'),

@@ -1,7 +1,7 @@
 const {
   app, BrowserWindow, globalShortcut, ipcMain,
   screen, desktopCapturer, safeStorage,
-  Tray, Menu, nativeImage,
+  Tray, Menu, nativeImage, powerMonitor,
 } = require('electron');
 const path = require('path');
 const fs   = require('fs');
@@ -224,6 +224,13 @@ let dragOffsetY       = 0;
 let tray              = null;
 let screenWatchEnabled = false;
 let isQuitting         = false;   // set true by the tray "Quit" item so window-all-closed lets us exit
+let agencyEnabled      = true;
+let lastNudgeAt        = 0;
+let lastUserSpokeAt    = Date.now();
+const NUDGE_CHECK_MS     = 60_000;
+const NUDGE_MIN_GAP_MS   = 45 * 60_000;
+const NUDGE_SESSION_MS   = 90 * 60_000;
+const NUDGE_QUIET_IDLE_S = 300;
 
 // Fully exit the app. window-all-closed normally keeps us alive in the tray, so
 // we flag the intentional quit first, then app.quit(). The timeout force-exits
@@ -265,6 +272,10 @@ function setTrayState(enabled) {
       label: enabled ? 'Turn OFF screen watch' : 'Turn ON screen watch',
       click: () => setTrayState(!screenWatchEnabled),
     },
+    { type: 'separator' },
+    { label: agencyEnabled ? '● Check-ins ON' : '○ Check-ins OFF', enabled: false },
+    { label: agencyEnabled ? 'Turn OFF check-ins' : 'Turn ON check-ins',
+      click: () => { agencyEnabled = !agencyEnabled; setTrayState(screenWatchEnabled); } },
     { type: 'separator' },
     { label: 'Quit Pistachio (fully exit)', click: () => quitApp() },
   ]);
@@ -386,6 +397,8 @@ function launchApp() {
     }
   }, 16);
 
+  setInterval(maybeNudge, NUDGE_CHECK_MS);
+
   globalShortcut.register('CommandOrControl+Shift+P', toggleChat);
 
   let modelVisible = true;
@@ -463,7 +476,9 @@ ipcMain.handle('auth:getUser', () => {
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
+  lastUserSpokeAt = Date.now();
   const token = await getValidToken();
+  console.log('[chat-auth]', 'token_present=', !!token, 'token_len=', token ? token.length : 0, 'token_prefix=', token ? token.slice(0, 12) : 'none', 'session_expires_at=', session?.expires_at, 'expires_in_sec=', session?.expires_at ? (session.expires_at - Math.floor(Date.now() / 1000)) : 'unknown', 'now=', new Date().toISOString());
   const res = await fetch(`${API_BASE}/chat`, {
     method:  'POST',
     headers: {
@@ -475,6 +490,64 @@ ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
   if (!res.ok) throw new Error(`Backend ${res.status}: ${await res.text()}`);
   return res.json();
 });
+
+async function ipcNudgeCall(payload) {
+  const token = await getValidToken();
+  console.log('[nudge-auth]', 'token_present=', !!token, 'token_len=', token ? token.length : 0, 'token_prefix=', token ? token.slice(0, 12) : 'none', 'session_expires_at=', session?.expires_at, 'expires_in_sec=', session?.expires_at ? (session.expires_at - Math.floor(Date.now() / 1000)) : 'unknown', 'now=', new Date().toISOString());
+  const res = await fetch(`${API_BASE}/nudge`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body:    JSON.stringify(payload),
+    signal:  AbortSignal.timeout(40_000),
+  });
+  if (res.status === 429) return null;
+  if (!res.ok) throw new Error(`Nudge ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+ipcMain.handle('api:nudge', async (_, payload) => {
+  return ipcNudgeCall(payload);
+});
+
+async function maybeNudge() {
+  if (!agencyEnabled || !session || !chatWindow || chatWindow.isDestroyed()) return;
+  const now = Date.now();
+  if (now - lastNudgeAt     < NUDGE_MIN_GAP_MS) return;
+  if (now - lastUserSpokeAt < NUDGE_SESSION_MS) return;
+
+  let idle = 0;
+  try { idle = powerMonitor.getSystemIdleTime(); } catch (e) { return; }
+  if (idle > NUDGE_QUIET_IDLE_S) return;
+
+  let screenshot = null;
+  if (screenWatchEnabled) {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'], thumbnailSize: { width: 1920, height: 1080 },
+      });
+      if (sources.length) screenshot = sources[0].thumbnail.toDataURL().split(',')[1];
+    } catch (e) { /* no screenshot, carry on */ }
+  }
+
+  const mins = Math.round((now - lastUserSpokeAt) / 60000);
+  const context  = `Still at their computer. Last spoke with you about ${mins} minutes ago.`;
+  const username = (session.email || 'user').split('@')[0];
+
+  try {
+    const data = await ipcNudgeCall({ username, context, screenshot });
+    if (!data || !data.message) return;
+    lastNudgeAt = Date.now();
+    if (modelWindow && !modelWindow.isDestroyed()) {
+      modelWindow.webContents.send('nudge', data);
+    }
+    if (chatWindow && !chatWindow.isDestroyed()) {
+      chatWindow.webContents.send('nudge', data);
+    }
+  } catch (e) {
+    lastNudgeAt = Date.now();
+    console.warn('[nudge] failed (non-fatal):', e.message);
+  }
+}
 
 ipcMain.handle('api:transcribe', async (_, audioB64) => {
   const token = await getValidToken();

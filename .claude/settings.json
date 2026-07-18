@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 /tmp/grounding_test.py)",
+      "Bash(python3 /tmp/grounding_diag.py)",
+      "Bash(python3 /tmp/grounding_prod.py)",
+      "Bash(python3 /tmp/p3_isolate.py)"
+    ]
+  }
+}
