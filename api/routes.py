@@ -324,7 +324,8 @@ async def chat(
             tts_ref = await db.fetch_voice_tts_ref(user_id)
             if tts_ref:
                 audio_bytes = await tts.synthesize(reply, tts_ref)
-                audio_b64   = base64.b64encode(audio_bytes).decode()
+                if audio_bytes:
+                    audio_b64 = base64.b64encode(audio_bytes).decode()
         except Exception as exc:
             log.warning("TTS failed (non-fatal): %s", exc)
 
@@ -387,7 +388,9 @@ async def nudge(req: NudgeRequest, user_id: str = Depends(get_current_user)):
         try:
             tts_ref = await db.fetch_voice_tts_ref(user_id)
             if tts_ref:
-                audio_b64 = base64.b64encode(await tts.synthesize(message, tts_ref)).decode()
+                audio_bytes = await tts.synthesize(message, tts_ref)
+                if audio_bytes:
+                    audio_b64 = base64.b64encode(audio_bytes).decode()
         except Exception as exc:
             log.warning("TTS failed (non-fatal): %s", exc)
 

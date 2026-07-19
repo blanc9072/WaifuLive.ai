@@ -11,10 +11,38 @@ concrete engine.  To add a new engine:
 import abc
 import logging
 import os
+import re
 
 import httpx
 
 log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# TTS text sanitizer
+# ---------------------------------------------------------------------------
+
+_TTS_STRIP = [
+    (r'</3', ''),               # broken heart (must come before <3)
+    (r'<3', ''),                # heart emoticon -> silent
+    (r'[:;=]-?[\)\(DPp]', ''), # basic smileys :) :( :D etc
+    (r'\*[^*]+\*', ''),         # *actions* like *hugs* -> silent
+    (r'[~^]', ''),              # stray tildes/carets
+]
+
+
+def _is_symbol(ch: str) -> bool:
+    import unicodedata
+    cat = unicodedata.category(ch)
+    return cat.startswith('So') or cat.startswith('Sk')
+
+
+def clean_for_tts(text: str) -> str:
+    """Remove emoticons/markup/emoji that TTS would mispronounce.
+    Does NOT touch the displayed text — only what gets synthesized."""
+    for pat, rep in _TTS_STRIP:
+        text = re.sub(pat, rep, text)
+    text = ''.join(ch for ch in text if not _is_symbol(ch))
+    return re.sub(r'\s{2,}', ' ', text).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -79,4 +107,7 @@ def get_synthesizer() -> Synthesizer:
 
 async def synthesize(text: str, voice_id: str) -> bytes:
     """Convenience wrapper — the only symbol the chat flow should import."""
+    text = clean_for_tts(text)
+    if not text:
+        return b''
     return await get_synthesizer().synthesize(text, voice_id)
