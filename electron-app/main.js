@@ -447,8 +447,6 @@ function launchApp() {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
-console.log('[config] API_BASE=', API_BASE);
-
 app.whenReady().then(() => {
   loadStoredSession();
   loadDnd();
@@ -509,7 +507,6 @@ ipcMain.handle('auth:getUser', () => {
 ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
   lastUserSpokeAt = Date.now();
   const token = await getValidToken();
-  console.log('[chat-auth]', 'token_present=', !!token, 'token_len=', token ? token.length : 0, 'token_prefix=', token ? token.slice(0, 12) : 'none', 'token_exp=', _tokenExpiry(session.access_token), 'expires_in_sec=', _tokenExpiry(session.access_token) - Math.floor(Date.now() / 1000), 'now=', new Date().toISOString());
   const res = await fetch(`${API_BASE}/chat`, {
     method:  'POST',
     headers: {
@@ -524,25 +521,15 @@ ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
 
 async function ipcNudgeCall(payload) {
   const token = await getValidToken();
-  console.log('[nudge-auth]', 'token_present=', !!token, 'token_len=', token ? token.length : 0, 'token_prefix=', token ? token.slice(0, 12) : 'none', 'token_exp=', _tokenExpiry(session.access_token), 'expires_in_sec=', _tokenExpiry(session.access_token) - Math.floor(Date.now() / 1000), 'now=', new Date().toISOString());
-  console.log('[nudge-send] POST', `${API_BASE}/nudge`, 'body_keys=', Object.keys(payload));
-  try {
-    const res = await fetch(`${API_BASE}/nudge`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body:    JSON.stringify(payload),
-      signal:  AbortSignal.timeout(40_000),
-    });
-    console.log('[nudge-send] status=', res.status);
-    if (res.status === 429) { console.log('[nudge-send] rate-limited (429)'); return null; }
-    if (!res.ok) throw new Error(`Nudge ${res.status}: ${await res.text()}`);
-    const data = await res.json();
-    console.log('[nudge-send] ok, message_len=', data?.message?.length, 'has_audio=', !!data?.audio_b64);
-    return data;
-  } catch (e) {
-    console.error('[nudge-send] FETCH THREW:', e.message, e.cause?.code || '');
-    throw e;
-  }
+  const res = await fetch(`${API_BASE}/nudge`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body:    JSON.stringify(payload),
+    signal:  AbortSignal.timeout(40_000),
+  });
+  if (res.status === 429) return null;
+  if (!res.ok) throw new Error(`Nudge ${res.status}: ${await res.text()}`);
+  return res.json();
 }
 
 ipcMain.handle('api:nudge', async (_, payload) => {
@@ -577,8 +564,6 @@ async function maybeNudge() {
   nudgeInFlight = true;
   try {
     const data = await ipcNudgeCall({ username, context, screenshot });
-    console.log('[nudge-deliver] have_data=', !!data, 'sending_to_chat=',
-                !!(chatWindow && !chatWindow.isDestroyed()));
     if (!data || !data.message) { lastNudgeAt = Date.now(); return; }
     lastNudgeAt = Date.now();
     if (modelWindow && !modelWindow.isDestroyed()) {
