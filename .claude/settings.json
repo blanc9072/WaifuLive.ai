@@ -4,7 +4,20 @@
       "Bash(python3 /tmp/grounding_test.py)",
       "Bash(python3 /tmp/grounding_diag.py)",
       "Bash(python3 /tmp/grounding_prod.py)",
-      "Bash(python3 /tmp/p3_isolate.py)"
+      "Bash(python3 /tmp/p3_isolate.py)",
+      "Bash(python3 -c \"import inspect, supabase; from supabase import create_client; c = create_client.__doc__; help\\(supabase.Client.table\\)\")",
+      "Bash(python3 -c \"import inspect; from postgrest import SyncRequestBuilder; print\\(inspect.signature\\(SyncRequestBuilder.upsert\\)\\)\")",
+      "Bash(python3 -c \"import supabase; print\\(supabase.__file__\\)\")",
+      "Read(//usr/**)",
+      "Bash(pip3 list *)",
+      "Bash(ls /Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/ | grep -i \"supa\\\\|postgrest\")",
+      "Read(//Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/**)",
+      "Read(//Library/Frameworks/Python.framework/**)",
+      "Bash(xargs -I{} basename {})",
+      "Bash(find /Users/andrewzeng -name \"supabase\" -type d 2>/dev/null | head -10 && find /Users/andrewzeng -name \"*.dist-info\" -path \"*supa*\" 2>/dev/null | head -10)",
+      "Read(//Users/andrewzeng/**)",
+      "Bash('/Users/andrewzeng/Documents/Real Waifu/.venv/bin/python3' -c ' *)",
+      "Bash(git --no-pager log --oneline -6)"
     ]
   }
 }

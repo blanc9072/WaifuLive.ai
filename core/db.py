@@ -8,6 +8,7 @@ correct pattern for trusted backend code.  The anon key is for clients only.
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 
 from supabase import create_client, Client
 
@@ -93,7 +94,9 @@ async def fetch_ltm(user_id: str) -> str:
 async def upsert_ltm(user_id: str, summary: str) -> None:
     def _():
         _sb().table("long_term_memory").upsert(
-            {"user_id": user_id, "summary": summary}
+            {"user_id": user_id, "summary": summary,
+             "updated_at": datetime.now(timezone.utc).isoformat()},
+            on_conflict="user_id",
         ).execute()
     await _run(_)
 
@@ -118,7 +121,9 @@ async def fetch_wm(user_id: str) -> dict:
 async def upsert_wm(user_id: str, location: str, activity: str, mood: str) -> None:
     def _():
         _sb().table("working_memory").upsert(
-            {"user_id": user_id, "location": location, "activity": activity, "mood": mood}
+            {"user_id": user_id, "location": location, "activity": activity,
+             "mood": mood, "updated_at": datetime.now(timezone.utc).isoformat()},
+            on_conflict="user_id",
         ).execute()
     await _run(_)
 

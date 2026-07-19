@@ -71,6 +71,7 @@ function _circlePng(size, r, g, b) {
 // ---------------------------------------------------------------------------
 
 const SESSION_PATH = path.join(app.getPath('userData'), 'session.bin');
+const DND_PATH     = path.join(app.getPath('userData'), 'dnd.json');
 
 // { access_token, refresh_token, user_id, email }
 let session = null;
@@ -94,6 +95,14 @@ function persistSession() {
 function clearStoredSession() {
   session = null;
   try { fs.unlinkSync(SESSION_PATH); } catch (_) {}
+}
+
+function persistDnd() {
+  try { fs.writeFileSync(DND_PATH, JSON.stringify({ dnd: dndEnabled })); } catch (_) {}
+}
+
+function loadDnd() {
+  try { dndEnabled = JSON.parse(fs.readFileSync(DND_PATH, 'utf8')).dnd === true; } catch (_) {}
 }
 
 // ---------------------------------------------------------------------------
@@ -224,13 +233,16 @@ let dragOffsetY       = 0;
 let tray              = null;
 let screenWatchEnabled = false;
 let isQuitting         = false;   // set true by the tray "Quit" item so window-all-closed lets us exit
-let agencyEnabled      = true;
+let dndEnabled         = false;
 let lastNudgeAt        = 0;
 let lastUserSpokeAt    = Date.now();
 const NUDGE_CHECK_MS     = 60_000;
-const NUDGE_MIN_GAP_MS   = 45 * 60_000;
-const NUDGE_SESSION_MS   = 90 * 60_000;
+const NUDGE_MIN_GAP_MS   = 45 * 60_000; // 45 *  
+const NUDGE_SESSION_MS   = 90 * 60_000; // 90 *
 const NUDGE_QUIET_IDLE_S = 300;
+let cursorPollTimer    = null;
+let nudgeTimer         = null;
+let nudgeInFlight      = false;
 
 // Fully exit the app. window-all-closed normally keeps us alive in the tray, so
 // we flag the intentional quit first, then app.quit(). The timeout force-exits
@@ -273,9 +285,12 @@ function setTrayState(enabled) {
       click: () => setTrayState(!screenWatchEnabled),
     },
     { type: 'separator' },
-    { label: agencyEnabled ? '● Check-ins ON' : '○ Check-ins OFF', enabled: false },
-    { label: agencyEnabled ? 'Turn OFF check-ins' : 'Turn ON check-ins',
-      click: () => { agencyEnabled = !agencyEnabled; setTrayState(screenWatchEnabled); } },
+    { label: dndEnabled ? '○ Do Not Disturb ON' : '● Check-ins ON', enabled: false },
+    { label: dndEnabled ? 'Turn OFF Do Not Disturb' : 'Turn ON Do Not Disturb',
+      click: () => { dndEnabled = !dndEnabled; persistDnd();
+                     if (chatWindow && !chatWindow.isDestroyed())
+                       chatWindow.webContents.send('dnd-changed', dndEnabled);
+                     setTrayState(screenWatchEnabled); } },
     { type: 'separator' },
     { label: 'Quit Pistachio (fully exit)', click: () => quitApp() },
   ]);
@@ -295,6 +310,11 @@ function teardownTray() {
   screenWatchEnabled = false;
   tray.destroy();
   tray = null;
+}
+
+function stopTimers() {
+  if (cursorPollTimer) { clearInterval(cursorPollTimer); cursorPollTimer = null; }
+  if (nudgeTimer)      { clearInterval(nudgeTimer);      nudgeTimer      = null; }
 }
 
 function createLoginWindow() {
@@ -345,10 +365,12 @@ function createChatWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.js'),
     },
   });
   chatWindow.loadFile('src/chat.html');
+  //chatWindow.webContents.openDevTools({ mode: 'detach' });
   chatWindow.on('closed', () => { chatWindow = null; });
   chatWindow.setAlwaysOnTop(true, 'screen-saver');
   chatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -377,11 +399,16 @@ function toggleChat() {
 }
 
 function launchApp() {
+  stopTimers();
+  globalShortcut.unregisterAll();
+  lastNudgeAt     = 0;
+  lastUserSpokeAt = Date.now();
+
   createModelWindow();
   createChatWindow();
 
   // Mouse polling for model window hit-testing / drag
-  setInterval(() => {
+  cursorPollTimer = setInterval(() => {
     if (!modelWindow || modelWindow.isDestroyed()) return;
     const pos    = screen.getCursorScreenPoint();
     const bounds = modelWindow.getBounds();
@@ -397,7 +424,7 @@ function launchApp() {
     }
   }, 16);
 
-  setInterval(maybeNudge, NUDGE_CHECK_MS);
+  nudgeTimer = setInterval(maybeNudge, NUDGE_CHECK_MS);
 
   globalShortcut.register('CommandOrControl+Shift+P', toggleChat);
 
@@ -420,8 +447,11 @@ function launchApp() {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
+console.log('[config] API_BASE=', API_BASE);
+
 app.whenReady().then(() => {
   loadStoredSession();
+  loadDnd();
   if (session) launchApp();
   else         createLoginWindow();
 });
@@ -459,6 +489,7 @@ ipcMain.handle('auth:signup', async (_, { email, password }) => {
 ipcMain.handle('auth:logout', () => {
   clearStoredSession();
   teardownTray();
+  stopTimers();
   if (modelWindow)    { modelWindow.close(); }
   if (chatWindow)     { chatWindow.close(); }
   if (settingsWindow) { settingsWindow.close(); }
@@ -478,7 +509,7 @@ ipcMain.handle('auth:getUser', () => {
 ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
   lastUserSpokeAt = Date.now();
   const token = await getValidToken();
-  console.log('[chat-auth]', 'token_present=', !!token, 'token_len=', token ? token.length : 0, 'token_prefix=', token ? token.slice(0, 12) : 'none', 'session_expires_at=', session?.expires_at, 'expires_in_sec=', session?.expires_at ? (session.expires_at - Math.floor(Date.now() / 1000)) : 'unknown', 'now=', new Date().toISOString());
+  console.log('[chat-auth]', 'token_present=', !!token, 'token_len=', token ? token.length : 0, 'token_prefix=', token ? token.slice(0, 12) : 'none', 'token_exp=', _tokenExpiry(session.access_token), 'expires_in_sec=', _tokenExpiry(session.access_token) - Math.floor(Date.now() / 1000), 'now=', new Date().toISOString());
   const res = await fetch(`${API_BASE}/chat`, {
     method:  'POST',
     headers: {
@@ -493,16 +524,25 @@ ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
 
 async function ipcNudgeCall(payload) {
   const token = await getValidToken();
-  console.log('[nudge-auth]', 'token_present=', !!token, 'token_len=', token ? token.length : 0, 'token_prefix=', token ? token.slice(0, 12) : 'none', 'session_expires_at=', session?.expires_at, 'expires_in_sec=', session?.expires_at ? (session.expires_at - Math.floor(Date.now() / 1000)) : 'unknown', 'now=', new Date().toISOString());
-  const res = await fetch(`${API_BASE}/nudge`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body:    JSON.stringify(payload),
-    signal:  AbortSignal.timeout(40_000),
-  });
-  if (res.status === 429) return null;
-  if (!res.ok) throw new Error(`Nudge ${res.status}: ${await res.text()}`);
-  return res.json();
+  console.log('[nudge-auth]', 'token_present=', !!token, 'token_len=', token ? token.length : 0, 'token_prefix=', token ? token.slice(0, 12) : 'none', 'token_exp=', _tokenExpiry(session.access_token), 'expires_in_sec=', _tokenExpiry(session.access_token) - Math.floor(Date.now() / 1000), 'now=', new Date().toISOString());
+  console.log('[nudge-send] POST', `${API_BASE}/nudge`, 'body_keys=', Object.keys(payload));
+  try {
+    const res = await fetch(`${API_BASE}/nudge`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body:    JSON.stringify(payload),
+      signal:  AbortSignal.timeout(40_000),
+    });
+    console.log('[nudge-send] status=', res.status);
+    if (res.status === 429) { console.log('[nudge-send] rate-limited (429)'); return null; }
+    if (!res.ok) throw new Error(`Nudge ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    console.log('[nudge-send] ok, message_len=', data?.message?.length, 'has_audio=', !!data?.audio_b64);
+    return data;
+  } catch (e) {
+    console.error('[nudge-send] FETCH THREW:', e.message, e.cause?.code || '');
+    throw e;
+  }
 }
 
 ipcMain.handle('api:nudge', async (_, payload) => {
@@ -510,10 +550,11 @@ ipcMain.handle('api:nudge', async (_, payload) => {
 });
 
 async function maybeNudge() {
-  if (!agencyEnabled || !session || !chatWindow || chatWindow.isDestroyed()) return;
+  if (dndEnabled || !session || !chatWindow || chatWindow.isDestroyed()) return;
   const now = Date.now();
   if (now - lastNudgeAt     < NUDGE_MIN_GAP_MS) return;
   if (now - lastUserSpokeAt < NUDGE_SESSION_MS) return;
+  if (nudgeInFlight) return;
 
   let idle = 0;
   try { idle = powerMonitor.getSystemIdleTime(); } catch (e) { return; }
@@ -533,9 +574,12 @@ async function maybeNudge() {
   const context  = `Still at their computer. Last spoke with you about ${mins} minutes ago.`;
   const username = (session.email || 'user').split('@')[0];
 
+  nudgeInFlight = true;
   try {
     const data = await ipcNudgeCall({ username, context, screenshot });
-    if (!data || !data.message) return;
+    console.log('[nudge-deliver] have_data=', !!data, 'sending_to_chat=',
+                !!(chatWindow && !chatWindow.isDestroyed()));
+    if (!data || !data.message) { lastNudgeAt = Date.now(); return; }
     lastNudgeAt = Date.now();
     if (modelWindow && !modelWindow.isDestroyed()) {
       modelWindow.webContents.send('nudge', data);
@@ -546,6 +590,8 @@ async function maybeNudge() {
   } catch (e) {
     lastNudgeAt = Date.now();
     console.warn('[nudge] failed (non-fatal):', e.message);
+  } finally {
+    nudgeInFlight = false;
   }
 }
 
@@ -636,6 +682,11 @@ ipcMain.handle('screenwatch:get', () => screenWatchEnabled);
 ipcMain.handle('screenwatch:set', (_, enabled) => {
   setTrayState(!!enabled);
   return screenWatchEnabled;
+});
+
+ipcMain.handle('dnd:get', () => dndEnabled);
+ipcMain.handle('dnd:set', (_, on) => {
+  dndEnabled = !!on; persistDnd(); setTrayState(screenWatchEnabled); return dndEnabled;
 });
 
 ipcMain.handle('capture-screen', async () => {

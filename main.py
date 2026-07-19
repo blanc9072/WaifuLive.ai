@@ -28,6 +28,9 @@ logging.basicConfig(
     format="[%(asctime)s] %(message)s",
     datefmt="%H:%M:%S",
 )
+for _noisy in ("httpx", "httpcore", "h2", "hpack", "urllib3", "google_genai",
+               "google.genai", "websockets.client", "websockets.server"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 API_HOST = os.getenv("API_HOST", "0.0.0.0")

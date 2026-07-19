@@ -37,4 +37,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getScreenWatch:       ()    => ipcRenderer.invoke('screenwatch:get'),
   setScreenWatch:       (on)  => ipcRenderer.invoke('screenwatch:set', on),
   onScreenWatchChanged: (cb)  => ipcRenderer.on('screenwatch-changed', (_, v) => cb(v)),
+
+  // ── Do Not Disturb — shared state between overlay and system tray ─────────
+  getDnd:       ()    => ipcRenderer.invoke('dnd:get'),
+  setDnd:       (on)  => ipcRenderer.invoke('dnd:set', on),
+  onDndChanged: (cb)  => ipcRenderer.on('dnd-changed', (_, v) => cb(v)),
 });
