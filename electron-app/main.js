@@ -370,7 +370,6 @@ function createChatWindow() {
     },
   });
   chatWindow.loadFile('src/chat.html');
-  //chatWindow.webContents.openDevTools({ mode: 'detach' });
   chatWindow.on('closed', () => { chatWindow = null; });
   chatWindow.setAlwaysOnTop(true, 'screen-saver');
   chatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -672,6 +671,10 @@ ipcMain.handle('screenwatch:set', (_, enabled) => {
 ipcMain.handle('dnd:get', () => dndEnabled);
 ipcMain.handle('dnd:set', (_, on) => {
   dndEnabled = !!on; persistDnd(); setTrayState(screenWatchEnabled); return dndEnabled;
+});
+
+ipcMain.handle('voice:token', async () => {
+  try { return await getValidToken(); } catch { return null; }
 });
 
 ipcMain.handle('capture-screen', async () => {

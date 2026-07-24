@@ -42,4 +42,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDnd:       ()    => ipcRenderer.invoke('dnd:get'),
   setDnd:       (on)  => ipcRenderer.invoke('dnd:set', on),
   onDndChanged: (cb)  => ipcRenderer.on('dnd-changed', (_, v) => cb(v)),
+
+  // ── Voice relay ───────────────────────────────────────────────────────────
+  getVoiceToken: () => ipcRenderer.invoke('voice:token'),
 });

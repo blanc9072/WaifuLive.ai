@@ -18,7 +18,10 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from api.routes import app
+import core.db as db
+from api.routes import app, verify_supabase_token, MEMORY_MODEL
+from core.gemini import gemini_client
+from core.memory import get_session
 from core.prompts import build_dynamic_prompt
 
 load_dotenv()
@@ -49,10 +52,10 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "google-key.json"
 _live_client = genai.Client(vertexai=True, project=_LIVE_PROJECT, location=_LIVE_LOCATION)
 
 
-def _live_session_config():
+def _live_session_config(user_session=None):
     return types.LiveConnectConfig(
         response_modalities=["AUDIO"],
-        system_instruction=build_dynamic_prompt(),   # no user session — voice uses defaults
+        system_instruction=build_dynamic_prompt(user_session),
         speech_config=types.SpeechConfig(
             voice_config=types.VoiceConfig(
                 prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Aoede")
@@ -65,9 +68,44 @@ def _live_session_config():
 
 async def _handle_voice_client(ws) -> None:
     log.debug("[Voice] Client connected: %s", ws.remote_address)
+
+    # Auth handshake: first frame must be {"type":"auth","token":"<jwt>"}
+    try:
+        raw = await asyncio.wait_for(ws.recv(), timeout=10.0)
+    except asyncio.TimeoutError:
+        log.warning("[Voice] Auth timeout — closing.")
+        await ws.close(4001, "auth timeout")
+        return
+
+    try:
+        msg   = json.loads(raw)
+        token = msg.get("token") if isinstance(msg, dict) and msg.get("type") == "auth" else None
+    except (json.JSONDecodeError, AttributeError):
+        token = None
+
+    if not token:
+        log.warning("[Voice] Bad auth frame — closing.")
+        await ws.close(4001, "missing auth")
+        return
+
+    user_id = await verify_supabase_token(token)
+    if not user_id:
+        log.warning("[Voice] Invalid token — closing.")
+        await ws.close(4003, "invalid token")
+        return
+
+    log.debug("[Voice] Authenticated user_id=%s", user_id)
+
+    user_session = await get_session(user_id)
+    username     = await db.fetch_username(user_id)
+
+    # Per-turn transcript buffers; flushed to DB in the finally block.
+    pending_turns: list[tuple[str, str]] = []
+    cur = {"user": "", "asst": ""}
+
     try:
         async with _live_client.aio.live.connect(
-            model=_LIVE_MODEL, config=_live_session_config()
+            model=_LIVE_MODEL, config=_live_session_config(user_session)
         ) as session:
             log.debug("[Voice] Gemini Live session opened.")
 
@@ -86,23 +124,67 @@ async def _handle_voice_client(ws) -> None:
                             )
 
             async def recv_from_gemini():
-                async for response in session.receive():
-                    if response.data:
-                        await ws.send(response.data)
-                    if response.server_content:
-                        sc = response.server_content
-                        if sc.output_transcription and sc.output_transcription.text:
-                            await ws.send(json.dumps({"type": "transcript",       "text": sc.output_transcription.text}))
-                        if sc.input_transcription  and sc.input_transcription.text:
-                            await ws.send(json.dumps({"type": "input_transcript", "text": sc.input_transcription.text}))
+                turn = 0
+                # session.receive() is per-turn: it breaks after each turn_complete.
+                # Loop so the relay stays alive for subsequent utterances.
+                while True:
+                    got_anything = False
+                    async for response in session.receive():
+                        got_anything = True
+                        if response.data:
+                            await ws.send(response.data)
+                        if response.server_content:
+                            sc = response.server_content
+                            if sc.output_transcription and sc.output_transcription.text:
+                                cur["asst"] += sc.output_transcription.text
+                                await ws.send(json.dumps({"type": "transcript",       "text": sc.output_transcription.text}))
+                            if sc.input_transcription  and sc.input_transcription.text:
+                                cur["user"] += sc.input_transcription.text
+                                await ws.send(json.dumps({"type": "input_transcript", "text": sc.input_transcription.text}))
+                            if sc.turn_complete:
+                                turn += 1
+                                log.debug("[Voice] turn_complete #%d", turn)
+                                if cur["user"].strip():
+                                    pending_turns.append(("user", f"[{username}]: {cur['user'].strip()}"))
+                                if cur["asst"].strip():
+                                    pending_turns.append(("assistant", cur["asst"].strip()))
+                                cur["user"] = ""; cur["asst"] = ""
+                    if not got_anything:
+                        break
 
-            await asyncio.gather(recv_from_client(), recv_from_gemini())
+            recv_client = asyncio.create_task(recv_from_client())
+            recv_gemini = asyncio.create_task(recv_from_gemini())
+            done, pending = await asyncio.wait(
+                {recv_client, recv_gemini},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
     except websockets.exceptions.ConnectionClosedOK:
         log.debug("[Voice] Client disconnected cleanly.")
     except Exception as exc:
         log.error("[Voice] Error: %s", exc)
         traceback.print_exc()
+    finally:
+        if pending_turns:
+            try:
+                async with user_session.lock:
+                    for role, text in pending_turns:
+                        await user_session.append(role, text)
+                    await user_session.compress_rolling(gemini_client, MEMORY_MODEL)
+                asyncio.create_task(user_session.update_working_memory(gemini_client, MEMORY_MODEL))
+                log.debug("[Voice] flushed %d turns to memory for user_id=%s", len(pending_turns), user_id)
+            except Exception as exc:
+                log.error("[Voice] memory flush failed for user_id=%s: %s", user_id, exc)
+        try:
+            await ws.close()
+        except Exception:
+            pass
 
 
 async def run_voice_relay() -> None:

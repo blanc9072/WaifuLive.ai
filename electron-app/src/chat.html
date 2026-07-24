@@ -773,9 +773,14 @@
     if (ws && ws.readyState === WebSocket.OPEN) return;
     ws = new WebSocket(LIVE_WS);
     ws.binaryType = 'arraybuffer';
-    ws.onopen    = async () => { await startMic(); };
-    ws.onclose   = ()       => { stopMic(); };
-    ws.onerror   = (e)      => console.error('[Voice]', e);
+    ws.onopen    = async () => {
+      const token = await window.electronAPI.getVoiceToken();
+      if (!token) { console.error('[Voice] no token — closing'); ws.close(); return; }
+      ws.send(JSON.stringify({ type: 'auth', token }));
+      await startMic();
+    };
+    ws.onclose   = (event)  => { stopMic(); console.log('[voice] socket CLOSED code=', event.code, 'reason=', event.reason, 'micOn=', micOn); };
+    ws.onerror   = (e)      => console.log('[voice] socket ERROR', e);
     ws.onmessage = (event)  => {
       if (event.data instanceof ArrayBuffer) {
         decodeAndEnqueue(event.data);

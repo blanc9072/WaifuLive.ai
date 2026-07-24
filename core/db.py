@@ -208,3 +208,15 @@ async def fetch_voice_tts_ref(user_id: str) -> str | None:
         )
         return rows[0]["tts_ref"] if rows else None
     return await _run(_)
+
+
+async def fetch_username(user_id: str) -> str:
+    """Return the email local-part for a user as a username (matches /chat prefix convention)."""
+    def _():
+        try:
+            result = _sb().auth.admin.get_user_by_id(user_id)
+            email = (result.user.email or "") if result.user else ""
+            return email.split("@")[0] if email else "user"
+        except Exception:
+            return "user"
+    return await _run(_)

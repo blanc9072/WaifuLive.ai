@@ -38,6 +38,15 @@ def _get_supabase() -> SupabaseClient:
     return _supabase
 
 
+async def verify_supabase_token(token: str) -> str | None:
+    """Verify a Supabase JWT; return the user_id or None on any failure."""
+    try:
+        result = await asyncio.to_thread(_get_supabase().auth.get_user, token)
+        return result.user.id
+    except Exception:
+        return None
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> str:
@@ -46,11 +55,11 @@ async def get_current_user(
     user_id comes exclusively from the verified token — never from the
     request body — so a client cannot impersonate another user.
     """
+    user_id = await verify_supabase_token(credentials.credentials)
+    if user_id:
+        return user_id
     try:
-        result = await asyncio.to_thread(
-            _get_supabase().auth.get_user, credentials.credentials
-        )
-        return result.user.id
+        await asyncio.to_thread(_get_supabase().auth.get_user, credentials.credentials)
     except Exception as e:
         raw = str(e)
         # Classify the failure reason explicitly for diagnostics.
