@@ -75,8 +75,12 @@ class ElevenLabsSynthesizer(Synthesizer):
             "output_format": "mp3_44100_128",
         }
         async with httpx.AsyncClient(timeout=30.0) as client:
+            log.info("[tts] sending %d chars: %r", len(text), text[:120])
             async with client.stream("POST", url, headers=headers, json=payload) as r:
-                r.raise_for_status()
+                if r.status_code >= 400:
+                    body = await r.aread()
+                    log.error("[tts] ElevenLabs %d: %s", r.status_code, body.decode(errors="replace")[:400])
+                    r.raise_for_status()
                 chunks: list[bytes] = []
                 async for chunk in r.aiter_bytes():
                     chunks.append(chunk)
@@ -107,7 +111,9 @@ def get_synthesizer() -> Synthesizer:
 
 async def synthesize(text: str, voice_id: str) -> bytes:
     """Convenience wrapper — the only symbol the chat flow should import."""
-    text = clean_for_tts(text)
-    if not text:
+    cleaned = clean_for_tts(text)
+    log.info("[tts] clean_for_tts: in=%r -> out=%r", text[:80], cleaned[:80])
+    if not cleaned:
+        log.warning("[tts] cleaned text empty, skipping synthesis")
         return b''
-    return await get_synthesizer().synthesize(text, voice_id)
+    return await get_synthesizer().synthesize(cleaned, voice_id)

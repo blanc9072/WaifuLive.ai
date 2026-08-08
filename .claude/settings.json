@@ -17,7 +17,25 @@
       "Bash(find /Users/andrewzeng -name \"supabase\" -type d 2>/dev/null | head -10 && find /Users/andrewzeng -name \"*.dist-info\" -path \"*supa*\" 2>/dev/null | head -10)",
       "Read(//Users/andrewzeng/**)",
       "Bash('/Users/andrewzeng/Documents/Real Waifu/.venv/bin/python3' -c ' *)",
-      "Bash(git --no-pager log --oneline -6)"
+      "Bash(git --no-pager log --oneline -6)",
+      "Bash(python3 -c \"from supabase import create_client; import inspect; c = create_client.__doc__; print\\(c\\)\")",
+      "Bash(python3 -c \"from gotrue import SyncGoTrueClient; print\\([m for m in dir\\(SyncGoTrueClient\\) if 'admin' in m.lower\\(\\)]\\)\")",
+      "Bash(python3 -c \"from gotrue._sync.gotrue_admin_api import SyncGoTrueAdminAPI; print\\([m for m in dir\\(SyncGoTrueAdminAPI\\) if 'user' in m.lower\\(\\)]\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(/Library/Frameworks/Python.framework/Versions/3.14/bin/pip3 show *)",
+      "Bash(python3 -c \"import supabase; import os; print\\(os.path.dirname\\(supabase.__file__\\)\\)\")",
+      "Bash(python3 -c \"import supabase; print\\(supabase.__spec__\\)\")",
+      "Read(//Users/andrewzeng/Documents/Real Waifu/.venv/lib/python3.14/site-packages/**)",
+      "Bash(grep -n \"get_user_by_id\\\\|get_user\" \"/Users/andrewzeng/Documents/Real Waifu/.venv/lib/python3.14/site-packages/supabase_auth/_sync/gotrue_admin_api.py\" | head -10)",
+      "Read(//Users/andrewzeng/Documents/Real Waifu/.venv/lib/python3.14/site-packages/supabase_auth/_sync/**)",
+      "Bash(grep -n \"admin\\\\|get_user_by_id\" \"/Users/andrewzeng/Documents/Real Waifu/.venv/lib/python3.14/site-packages/supabase_auth/_sync/gotrue_client.py\" | head -10)",
+      "Bash(grep -n \"class UserResponse\\\\|email\\\\|user:\" \"/Users/andrewzeng/Documents/Real Waifu/.venv/lib/python3.14/site-packages/supabase_auth/types.py\" | grep -A2 \"UserResponse\\\\|email\" | head -15)",
+      "Read(//Users/andrewzeng/Documents/Real Waifu/.venv/lib/python3.14/site-packages/supabase_auth/**)",
+      "Bash(git commit -m ' *)",
+      "Bash(python3 -c \"import google.genai; print\\(google.genai.__version__\\)\")",
+      "Bash(python3 /tmp/fc_spike.py)",
+      "Bash(python3 /tmp/fc_prompt_spike.py)",
+      "Bash(python3 /tmp/signal_spike.py)"
     ]
   }
 }

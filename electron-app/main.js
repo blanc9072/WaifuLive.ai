@@ -514,8 +514,12 @@ ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
     },
     body: JSON.stringify({ username, message, screenshot }),
   });
-  if (!res.ok) throw new Error(`Backend ${res.status}: ${await res.text()}`);
-  return res.json();
+  console.log('[chat-resp] status=', res.status, res.statusText);
+  const bodyText = await res.text();
+  console.log('[chat-resp] body=', bodyText.slice(0, 500));
+  if (!res.ok) throw new Error(`Backend ${res.status}: ${bodyText.slice(0, 200)}`);
+  const data = JSON.parse(bodyText);
+  return data;
 });
 
 async function ipcNudgeCall(payload) {

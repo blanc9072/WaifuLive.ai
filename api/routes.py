@@ -2,6 +2,7 @@ import asyncio
 import logging
 import base64
 import os
+import re
 import tempfile
 from faster_whisper import WhisperModel
 from fastapi import FastAPI, HTTPException, Depends
@@ -323,6 +324,16 @@ async def chat(
             session.pop_last()
             log.error("Empty reply from model; rolled back user turn.")
             raise HTTPException(status_code=500, detail="No reply generated.")
+
+        # Stage 1: detect + strip tool-action signal (execution comes in a later stage)
+        action_request: str | None = None
+        m = re.search(r"<action>\s*calendar:\s*(.*?)\s*</action>", reply, re.IGNORECASE | re.DOTALL)
+        if m:
+            action_request = m.group(1).strip()
+            reply = re.sub(r"<action>.*?</action>", "", reply, flags=re.IGNORECASE | re.DOTALL).strip()
+            log.info("[tool-signal] calendar action requested: %r", action_request)
+        if not reply:
+            reply = "on it!"
 
         await session.append("assistant", reply)
         asyncio.create_task(session.update_working_memory(gemini_client, MEMORY_MODEL))
