@@ -14,6 +14,8 @@ from google.genai import types
 from core.gemini import gemini_client, GEMINI_MODEL, generate_reply
 from core.memory import get_session
 from core.prompts import build_dynamic_prompt
+from core.tool_resolver import resolve_calendar_action
+from core.calendar_executor import create_calendar_event
 import core.db as db
 import core.tts as tts
 
@@ -154,9 +156,10 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    reply:          str
-    working_memory: dict
-    audio_b64:      str | None = None
+    reply:           str
+    working_memory:  dict
+    audio_b64:       str | None = None
+    calendar_action: dict | None = None
 
 
 class TranscribeRequest(BaseModel):
@@ -325,13 +328,25 @@ async def chat(
             log.error("Empty reply from model; rolled back user turn.")
             raise HTTPException(status_code=500, detail="No reply generated.")
 
-        # Stage 1: detect + strip tool-action signal (execution comes in a later stage)
+        # Stage 1: detect + strip tool-action signal
         action_request: str | None = None
+        calendar_action: dict | None = None
         m = re.search(r"<action>\s*calendar:\s*(.*?)\s*</action>", reply, re.IGNORECASE | re.DOTALL)
         if m:
             action_request = m.group(1).strip()
             reply = re.sub(r"<action>.*?</action>", "", reply, flags=re.IGNORECASE | re.DOTALL).strip()
             log.info("[tool-signal] calendar action requested: %r", action_request)
+            try:
+                resolved = await resolve_calendar_action(action_request)
+                log.info("[stage2] result: status=%s tool=%s args=%r",
+                         resolved.status, resolved.tool, resolved.args)
+                # Stage 3: actually execute resolved create_event calls. Never
+                # raises — a clean "error" result on failure, /chat still returns.
+                if resolved.status == "resolved" and resolved.tool == "create_event":
+                    calendar_action = await create_calendar_event(resolved.args)
+                    log.info("[stage3] execution result: %s", calendar_action)
+            except Exception as exc:
+                log.warning("[stage2/3] calendar tool pipeline failed (non-fatal): %s", exc)
         if not reply:
             reply = "on it!"
 
@@ -357,6 +372,7 @@ async def chat(
                 "mood":     session.working_memory.mood,
             },
             audio_b64=audio_b64,
+            calendar_action=calendar_action,
         )
 
 
