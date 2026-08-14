@@ -79,7 +79,8 @@
       "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to \\(summary of every event whose summary contains \"STAGE3_PIPE\" or summary is \"gym\"\\)')",
       "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to delete \\(every event whose summary contains \"STAGE3_PIPE\"\\)')",
       "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to delete \\(every event whose summary is \"gym\"\\)')",
-      "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to \\(count of \\(every event whose summary contains \"STAGE3\"\\)\\)')"
+      "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to \\(count of \\(every event whose summary contains \"STAGE3\"\\)\\)')",
+      "Bash(/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14 --version)"
     ]
   }
 }

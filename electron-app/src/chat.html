@@ -126,6 +126,38 @@
       border-bottom-left-radius: var(--radius-sm);
       box-shadow: var(--shadow-sm);
     }
+    /* Action result — a finished tool outcome, not a chat message. Centered
+       and pill-shaped so it reads as a system line, distinct from .user/.pistachio.
+       Modifier class is the executor's literal status value. */
+    .bubble.action {
+      align-self: center;
+      max-width: 88%;
+      display: flex; align-items: baseline; gap: 7px;
+      padding: 7px 13px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--color-border);
+      background: var(--color-surface-2);
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
+    }
+    .bubble.action .action-glyph { flex-shrink: 0; }
+    .bubble.action.success {
+      background: var(--color-accent-subtle);
+      border-color: var(--color-accent);
+      color: var(--color-accent-on);
+    }
+    .bubble.action.app_disabled,
+    .bubble.action.os_denied {
+      background: var(--color-danger-subtle);
+      border-color: var(--color-danger);
+      color: var(--color-danger);
+    }
+    .bubble.action.error {
+      border-color: var(--color-neutral);
+      color: var(--color-text-muted);
+    }
+
     #typing { display: none; align-self: flex-start; }
     #typing.show { display: flex; }
     .dot {
@@ -532,6 +564,8 @@
   let nextPlayTime = 0;
   let transcriptBuffer = '';
   let transcriptTimer  = null;
+  let userTranscriptBuffer = '';
+  let userTranscriptTimer  = null;
 
   const bc = new BroadcastChannel('pistachio');
 
@@ -545,6 +579,60 @@
     div.textContent = text;
     messagesEl.insertBefore(div, typingEl);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // Renders a FINISHED tool outcome only — never a pending/optimistic state.
+  const ACTION_GLYPHS = {
+    success:      '✓',
+    app_disabled: '🔒',
+    os_denied:    '🔒',
+    error:        '⚠',
+  };
+
+  function addActionBubble(text, status) {
+    emptyEl.style.display = 'none';
+    const div = document.createElement('div');
+    div.className = `bubble action ${status || 'error'}`;
+    const glyph = document.createElement('span');
+    glyph.className   = 'action-glyph';
+    glyph.textContent = ACTION_GLYPHS[status] ?? ACTION_GLYPHS.error;
+    const label = document.createElement('span');
+    label.textContent = text;
+    div.append(glyph, label);
+    messagesEl.insertBefore(div, typingEl);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // Shape mirrors core/calendar_executor.py → ExecutionResult.to_dict():
+  //   { status, message, title, start, end, all_day }
+  // The event name is `title` — there is no `summary` key on the wire.
+  function formatEventWhen(action) {
+    if (!action.start) return '';
+    const d = new Date(action.start);   // naive local ISO — parsed as local time
+    if (isNaN(d)) return '';
+    const day = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    return action.all_day
+      ? `${day}, all day`
+      : `${day} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  }
+
+  function calendarActionText(action) {
+    const title = (action.title || '').trim();
+    switch (action.status) {
+      case 'success': {
+        const named = title ? `“${title}”` : 'that';
+        const when  = formatEventWhen(action);
+        return when
+          ? `added ${named} to your calendar — ${when}`
+          : `added ${named} to your calendar`;
+      }
+      case 'app_disabled':
+        return "you haven't given me calendar permission — turn it on in Settings";
+      case 'os_denied':
+        return 'macOS is blocking me — enable it in System Settings › Privacy & Security';
+      default:   // "error", plus any status this build doesn't know yet
+        return "couldn't add that to your calendar";
+    }
   }
 
   function setTyping(show) {
@@ -610,6 +698,10 @@
       });
       setTyping(false);
       addBubble(data.reply, false);
+
+      if (data.calendar_action) {
+        addActionBubble(calendarActionText(data.calendar_action), data.calendar_action.status);
+      }
 
       const wm = data.working_memory || {};
       updateChips(wm.mood || 'chill', wm.activity || 'unknown', wm.location || 'unknown');
@@ -742,6 +834,18 @@
     }, 800);
   }
 
+  // Same 800ms debounce as the assistant side, but a separate buffer — the user's
+  // streaming transcript chunks coalesce into one bubble instead of one per chunk.
+  function accumulateUserTranscript(text) {
+    userTranscriptBuffer += (userTranscriptBuffer ? ' ' : '') + text;
+    clearTimeout(userTranscriptTimer);
+    userTranscriptTimer = setTimeout(() => {
+      if (!userTranscriptBuffer.trim()) return;
+      addBubble(userTranscriptBuffer.trim(), true);
+      userTranscriptBuffer = '';
+    }, 800);
+  }
+
   // ---------------------------------------------------------------------------
   // Mic (live WebSocket voice)
   // ---------------------------------------------------------------------------
@@ -788,7 +892,7 @@
         try {
           const m = JSON.parse(event.data);
           if (m.type === 'transcript')       accumulateTranscript(m.text);
-          if (m.type === 'input_transcript') addBubble(m.text, true);
+          if (m.type === 'input_transcript') accumulateUserTranscript(m.text);
         } catch (_) {}
       }
     };
