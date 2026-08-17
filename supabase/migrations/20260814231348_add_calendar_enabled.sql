@@ -1,0 +1,1 @@
+alter table profiles add column if not exists calendar_enabled boolean not null default false;

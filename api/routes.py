@@ -342,9 +342,15 @@ async def chat(
                          resolved.status, resolved.tool, resolved.args)
                 # Stage 3: actually execute resolved create_event calls. Never
                 # raises — a clean "error" result on failure, /chat still returns.
+                # Permission is per-user (profiles.calendar_enabled, set via the
+                # Agency Permissions toggle in Settings) — fetched fresh each
+                # time so a user flipping it off takes effect on their very
+                # next message, not just after some cache expires.
                 if resolved.status == "resolved" and resolved.tool == "create_event":
-                    calendar_action = await create_calendar_event(resolved.args)
-                    log.info("[stage3] execution result: %s", calendar_action)
+                    cal_enabled = await db.fetch_calendar_enabled(user_id)
+                    calendar_action = await create_calendar_event(resolved.args, enabled=cal_enabled)
+                    log.info("[stage3] execution result (calendar_enabled=%s): %s",
+                             cal_enabled, calendar_action)
             except Exception as exc:
                 log.warning("[stage2/3] calendar tool pipeline failed (non-fatal): %s", exc)
         if not reply:

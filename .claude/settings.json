@@ -80,7 +80,18 @@
       "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to delete \\(every event whose summary contains \"STAGE3_PIPE\"\\)')",
       "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to delete \\(every event whose summary is \"gym\"\\)')",
       "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to \\(count of \\(every event whose summary contains \"STAGE3\"\\)\\)')",
-      "Bash(/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14 --version)"
+      "Bash(/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14 --version)",
+      "Bash(env)",
+      "Bash(security find-generic-password *)",
+      "Bash(security dump-keychain *)",
+      "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to \\(summary of every event whose summary contains \"STAGE3_LINKTEST\"\\)')",
+      "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to delete \\(every event whose summary contains \"STAGE3_LINKTEST\"\\)')",
+      "Bash(osascript -e 'tell application \"Calendar\" to tell calendar \"Home\" to \\(count of \\(every event whose summary contains \"STAGE3_LINKTEST\"\\)\\)')",
+      "Bash(ps -o pid,lstart,etime -p 33474)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8000/health)",
+      "Bash(lsof -nP -iTCP:8000 -sTCP:LISTEN)",
+      "Bash(lsof -nP -iTCP:8765 -sTCP:LISTEN)",
+      "Bash(kill 35989)"
     ]
   }
 }

@@ -210,6 +210,29 @@ async def fetch_voice_tts_ref(user_id: str) -> str | None:
     return await _run(_)
 
 
+# ---------------------------------------------------------------------------
+# calendar permission
+# ---------------------------------------------------------------------------
+
+async def fetch_calendar_enabled(user_id: str) -> bool:
+    """Return profiles.calendar_enabled for the user. Default-deny: no profile
+    row, NULL column, or any DB error all return False — never assume consent."""
+    def _():
+        try:
+            rows = (
+                _sb().table("profiles")
+                .select("calendar_enabled")
+                .eq("id", user_id)
+                .execute()
+                .data
+            )
+            return bool(rows[0].get("calendar_enabled")) if rows else False
+        except Exception:
+            log.warning("fetch_calendar_enabled failed for user=%s — defaulting to disabled", user_id)
+            return False
+    return await _run(_)
+
+
 async def fetch_username(user_id: str) -> str:
     """Return the email local-part for a user as a username (matches /chat prefix convention)."""
     def _():

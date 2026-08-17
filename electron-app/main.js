@@ -317,6 +317,26 @@ function stopTimers() {
   if (nudgeTimer)      { clearInterval(nudgeTimer);      nudgeTimer      = null; }
 }
 
+// No custom app menu is set, so macOS falls back to its default menu, whose
+// "Close Window" item is bound to Cmd+W and destroys the focused frameless
+// window (chatWindow/modelWindow) outright — toggleChat() and the model
+// toggle in launchApp() only show/hide an existing window, so once one is
+// destroyed this way there's nothing left to bring back short of a relaunch.
+//
+// Scoped to this window's own input only — NOT globalShortcut, which
+// intercepts the combo at the OS level for every application, focused or
+// not (that previously broke Cmd+W everywhere, e.g. closing Chrome tabs,
+// for as long as Pistachio was running in the background).
+function _disableCloseShortcut(win) {
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const modifier = process.platform === 'darwin' ? input.meta : input.control;
+    if (modifier && !input.shift && !input.alt && input.key.toLowerCase() === 'w') {
+      event.preventDefault();
+    }
+  });
+}
+
 function createLoginWindow() {
   loginWindow = new BrowserWindow({
     width: 360, height: 440,
@@ -350,6 +370,7 @@ async function createModelWindow() {
   modelWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   modelWindow.loadFile('src/model.html');
   modelWindow.setIgnoreMouseEvents(true, { forward: true });
+  _disableCloseShortcut(modelWindow);
   const win = modelWindow;
   win.on('closed', () => { if (modelWindow === win) modelWindow = null; });
 }
@@ -373,6 +394,7 @@ function createChatWindow() {
   chatWindow.on('closed', () => { chatWindow = null; });
   chatWindow.setAlwaysOnTop(true, 'screen-saver');
   chatWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  _disableCloseShortcut(chatWindow);
 }
 
 function createSettingsWindow() {
@@ -623,7 +645,7 @@ ipcMain.handle('settings:load', async () => {
     sbGet('/rest/v1/voices?select=id,name,description,is_default&order=name', token),
     sbGet('/rest/v1/avatars?select=id,name,file_path,is_default&order=name', token),
     sbGet(
-      `/rest/v1/profiles?id=eq.${session.user_id}&select=persona_id,voice_id,avatar_id`,
+      `/rest/v1/profiles?id=eq.${session.user_id}&select=persona_id,voice_id,avatar_id,calendar_enabled`,
       token,
     ),
   ]);
@@ -631,11 +653,14 @@ ipcMain.handle('settings:load', async () => {
   return { personas, voices, avatars, profile };
 });
 
-ipcMain.handle('settings:save', async (_, { personaId, voiceId, avatarId }) => {
+ipcMain.handle('settings:save', async (_, { personaId, voiceId, avatarId, calendarEnabled }) => {
   const token = await getValidToken();
   await sbUpsert(
     '/rest/v1/profiles',
-    { id: session.user_id, persona_id: personaId, voice_id: voiceId, avatar_id: avatarId },
+    {
+      id: session.user_id, persona_id: personaId, voice_id: voiceId, avatar_id: avatarId,
+      calendar_enabled: calendarEnabled,
+    },
     token,
   );
   return { ok: true };

@@ -45,6 +45,42 @@
     .card:hover  { border-color: #4A6741; color: #2C2C2C; }
     .card.selected { border-color: #4A6741; background: #EDF5EB; color: #2C4A23; font-weight: 600; }
     .empty { font-size: 12px; color: #BBB; font-style: italic; }
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 14px; cursor: pointer;
+    }
+    .toggle-copy { display: flex; flex-direction: column; gap: 3px; }
+    .toggle-title { font-size: 13px; color: #2C2C2C; font-weight: 600; }
+    .toggle-help  { font-size: 11px; color: #999; line-height: 1.4; }
+    .toggle-switch {
+      -webkit-appearance: none; appearance: none;
+      width: 38px; height: 22px; border-radius: 11px; flex-shrink: 0;
+      background: #DDD8D0; border: none; position: relative;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .toggle-switch::before {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      transition: transform 0.15s;
+    }
+    .toggle-switch:checked          { background: #4A6741; }
+    .toggle-switch:checked::before  { transform: translateX(16px); }
+    /* Collapsed-by-default disclosure — native <details>, no JS needed.
+       To make it always-visible instead, add the `open` attribute to
+       <details class="agency-permissions"> below. */
+    .agency-permissions summary {
+      list-style: none; cursor: pointer; user-select: none;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+      color: #888; display: flex; align-items: center; justify-content: space-between;
+    }
+    .agency-permissions summary::-webkit-details-marker { display: none; }
+    .agency-permissions summary::after {
+      content: '▸'; font-size: 10px; color: #BBB; transition: transform 0.15s;
+    }
+    .agency-permissions[open] summary::after { transform: rotate(90deg); }
+    .agency-permissions[open] summary { margin-bottom: 12px; }
+    .permission-list { display: flex; flex-direction: column; gap: 16px; }
     #footer {
       background: white; flex-shrink: 0;
       padding: 12px 24px;
@@ -84,6 +120,22 @@
     <section>
       <h2>Avatar</h2>
       <div class="grid" id="avatarGrid"><span class="empty">Loading…</span></div>
+    </section>
+    <section>
+      <details class="agency-permissions">
+        <summary>Agency Permissions</summary>
+        <!-- Repeatable row pattern — each future capability is just another
+             .toggle-row here, same shape as the Calendar one. -->
+        <div class="permission-list">
+          <label class="toggle-row" for="calendarToggle">
+            <div class="toggle-copy">
+              <span class="toggle-title">Let her manage your calendar</span>
+              <span class="toggle-help">She can add events when you ask — turn off any time.</span>
+            </div>
+            <input type="checkbox" id="calendarToggle" class="toggle-switch">
+          </label>
+        </div>
+      </details>
     </section>
   </div>
   <div id="footer">
@@ -128,6 +180,10 @@
       makeGrid(personas, document.getElementById('personaGrid'), 'personaId');
       makeGrid(voices,   document.getElementById('voiceGrid'),   'voiceId');
       makeGrid(avatars,  document.getElementById('avatarGrid'),  'avatarId');
+
+      // profiles.calendar_enabled is boolean not null default false — !! just
+      // guards the pre-migration/empty-row case where profile is {}.
+      document.getElementById('calendarToggle').checked = !!profile.calendar_enabled;
     } catch (err) {
       document.getElementById('content').innerHTML =
         `<p style="color:#C0392B;font-size:13px;padding:20px">${err.message}</p>`;
@@ -141,9 +197,10 @@
     status.textContent = '';
     try {
       await window.electronAPI.saveSettings({
-        personaId: selected.personaId,
-        voiceId:   selected.voiceId,
-        avatarId:  selected.avatarId,
+        personaId:       selected.personaId,
+        voiceId:         selected.voiceId,
+        avatarId:        selected.avatarId,
+        calendarEnabled: document.getElementById('calendarToggle').checked, // real boolean, not a string
       });
       status.textContent = 'Saved ✓';
       setTimeout(() => { status.textContent = ''; }, 2000);

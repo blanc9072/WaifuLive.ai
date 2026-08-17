@@ -401,6 +401,41 @@
     }
     .ov-toggle-status[data-on="true"] { color: var(--color-accent); }
 
+    /* Agency Permissions — collapsed-by-default disclosure (native <details>,
+       no JS needed to open/close). To make it always-visible instead, add
+       the `open` attribute to <details class="ov-disclosure"> below. */
+    .ov-disclosure summary {
+      list-style: none; cursor: pointer; user-select: none;
+      display: flex; align-items: center; justify-content: space-between;
+      min-height: 34px; padding: 3px 0;
+    }
+    .ov-disclosure summary::-webkit-details-marker { display: none; }
+    .ov-disclosure summary::after {
+      content: ''; pointer-events: none;
+      width: 6px; height: 6px;
+      border-right: 1.6px solid var(--color-text-muted);
+      border-bottom: 1.6px solid var(--color-text-muted);
+      transform: rotate(45deg);
+      transition: transform var(--duration-fast) var(--ease);
+    }
+    .ov-disclosure[open] summary::after { transform: rotate(-135deg); }
+    .ov-disclosure[open] summary { margin-bottom: 2px; }
+    /* Repeatable capability row — each future permission is just another
+       .ov-cap-row here, same shape as the Calendar one. */
+    .ov-cap-row {
+      display: flex; align-items: center; gap: var(--space-sm);
+      padding: 6px 0;
+    }
+    .ov-cap-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .ov-cap-title {
+      font-size: var(--font-size-sm); color: var(--color-text-primary);
+      font-weight: var(--font-weight-medium);
+    }
+    .ov-cap-help {
+      font-size: var(--font-size-xs); color: var(--color-text-muted);
+      line-height: var(--line-height-normal);
+    }
+
     /* Sign out — left-aligned row, no border box */
     .ov-signout {
       display: flex; align-items: center; justify-content: flex-start;
@@ -529,6 +564,24 @@
         </button>
         <span class="ov-toggle-status" id="dndStatus" data-on="false">OFF</span>
       </div>
+    </div>
+
+    <div class="ov-divider"></div>
+
+    <div class="ov-section">
+      <details class="ov-disclosure" id="agencyPermissions">
+        <summary><span class="ov-label"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>Agency Permissions</span></summary>
+        <div class="ov-cap-row">
+          <div class="ov-cap-copy">
+            <span class="ov-cap-title">Let her manage your calendar</span>
+            <span class="ov-cap-help">She can add events when you ask — turn off any time.</span>
+          </div>
+          <button class="ov-toggle" id="calendarToggle" data-on="false">
+            <span class="ov-toggle-thumb"></span>
+          </button>
+          <span class="ov-toggle-status" id="calendarStatus" data-on="false">OFF</span>
+        </div>
+      </details>
     </div>
 
     <div class="ov-divider"></div>
@@ -1190,6 +1243,25 @@
 
   window.electronAPI.onDndChanged(on => _applyDnd(on));
 
+  // Calendar permission — profiles.calendar_enabled, persisted the same way as
+  // persona/voice/avatar (loadSettings/saveSettings → Supabase), NOT the
+  // screen-watch/DND pattern above (that's ephemeral main-process/tray state).
+  const calendarToggle = document.getElementById('calendarToggle');
+  const calendarStatus = document.getElementById('calendarStatus');
+
+  function _applyCalendarEnabled(on) {
+    const v = String(!!on);
+    calendarToggle.dataset.on = v;
+    calendarStatus.dataset.on = v;
+    calendarStatus.textContent = on ? 'ON' : 'OFF';
+  }
+
+  calendarToggle.addEventListener('click', async () => {
+    const next = calendarToggle.dataset.on !== 'true';
+    _applyCalendarEnabled(next);   // optimistic update, mirrors screen-watch/DND above
+    await _saveSettings();
+  });
+
   // Load personas / voices / avatars from Supabase on first open
   async function _loadOverlayData() {
     // Seed screen-watch and DND toggles with current tray state
@@ -1206,6 +1278,7 @@
       fill(personaSelect, personas, profile.persona_id);
       fill(voiceSelect,   voices,   profile.voice_id);
       fill(avatarSelect,  avatars,  profile.avatar_id);
+      _applyCalendarEnabled(profile.calendar_enabled); // guarded (!!) inside the helper
     } catch (err) {
       console.error('[settings] load failed:', err);
       personaSelect.innerHTML = voiceSelect.innerHTML = avatarSelect.innerHTML =
@@ -1217,9 +1290,10 @@
   async function _saveSettings() {
     try {
       await window.electronAPI.saveSettings({
-        personaId: personaSelect.value,
-        voiceId:   voiceSelect.value,
-        avatarId:  avatarSelect.value,
+        personaId:       personaSelect.value,
+        voiceId:         voiceSelect.value,
+        avatarId:        avatarSelect.value,
+        calendarEnabled: calendarToggle.dataset.on === 'true', // real boolean, not a string
       });
     } catch (err) {
       console.error('[settings] save failed:', err);

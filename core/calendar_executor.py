@@ -3,12 +3,16 @@ Stage 3 — executes a resolved create_event action against macOS Calendar via
 AppleScript (osascript).
 
 Standalone and model-agnostic: takes a plain args dict, returns a plain dict.
-Deliberately does NOT import routes, request/response models, or anything
-voice/Live-specific, so the voice relay can reuse create_calendar_event()
-unchanged once that path is wired up.
+Deliberately does NOT import routes, request/response models, Supabase, or
+anything voice/Live-specific, so the voice relay can reuse
+create_calendar_event() unchanged once that path is wired up.
 
 Gating (checked in order, default-deny):
-  1. calendar_enabled() — app-level feature flag (CALENDAR_ENABLED env var).
+  1. `enabled` — the caller's already-resolved permission decision. This
+     module has no opinion on WHERE that comes from (profiles.calendar_enabled
+     via core.db, a future org-level policy, whatever) — it just refuses to
+     run when told no, so every caller must explicitly decide rather than
+     inheriting a silent default-allow.
   2. macOS Calendar automation permission, enforced by the OS.
 
 The permission-denied signature below was captured live on this machine by
@@ -20,7 +24,6 @@ Matched loosely (substring + code) since exact wording can vary by macOS version
 
 import asyncio
 import logging
-import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 
@@ -42,14 +45,6 @@ class ExecutionResult:
 
     def to_dict(self) -> dict:
         return asdict(self)
-
-
-def calendar_enabled() -> bool:
-    """App-level feature flag. Default-deny: unset/unreadable/false -> disabled."""
-    try:
-        return os.getenv("CALENDAR_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
-    except Exception:
-        return False
 
 
 def _parse_dt(s: str) -> datetime | None:
@@ -80,8 +75,12 @@ def _escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
-async def create_calendar_event(args: dict) -> dict:
+async def create_calendar_event(args: dict, enabled: bool) -> dict:
     """Create a calendar event from a resolved create_event args dict.
+
+    `enabled` is the caller's already-resolved permission decision — no
+    default, so a caller can't accidentally omit it and get a silent allow.
+    e.g. /chat passes core.db.fetch_calendar_enabled(user_id) here.
 
     Never raises — every failure path returns a status dict. Synchronous
     callers (e.g. /chat) can await this without risking the turn; on
@@ -92,7 +91,7 @@ async def create_calendar_event(args: dict) -> dict:
     end_s   = (args.get("end") or "").strip()
     all_day = bool(args.get("all_day", False))
 
-    if not calendar_enabled():
+    if not enabled:
         return ExecutionResult(
             status="app_disabled",
             message="Calendar actions are turned off.",
