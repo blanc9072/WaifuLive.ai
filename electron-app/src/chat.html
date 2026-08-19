@@ -372,69 +372,19 @@
     }
     .ov-select:focus { border-color: var(--color-accent); }
 
-    /* Screen-watch toggle switch */
-    .ov-toggle {
-      position: relative;
-      width: 36px; height: 20px; flex-shrink: 0;
-      border-radius: var(--radius-full);
-      border: none; padding: 0;
-      background: var(--color-border);
-      cursor: pointer;
-      transition: background var(--duration-normal) var(--ease);
+    /* Settings — opens the separate Settings window (DND, Screen watch,
+       Calendar). Left-aligned row, same shape as Sign out below. */
+    .ov-settings-link {
+      display: flex; align-items: center; justify-content: flex-start;
+      gap: var(--space-sm);
+      width: 100%; min-height: 34px; padding: 3px 0;
+      border: none; border-radius: var(--radius-sm);
+      background: transparent; color: var(--color-text-secondary);
+      font-size: var(--font-size-sm); font-weight: var(--font-weight-medium);
+      font-family: var(--font-family); cursor: pointer;
+      transition: background var(--duration-fast) var(--ease);
     }
-    .ov-toggle[data-on="true"]  { background: var(--color-accent); }
-    .ov-toggle-thumb {
-      position: absolute; top: 2px; left: 2px;
-      width: 16px; height: 16px;
-      border-radius: var(--radius-full);
-      background: var(--color-surface);
-      box-shadow: var(--shadow-sm);
-      transition: transform var(--duration-normal) var(--ease);
-    }
-    .ov-toggle[data-on="true"] .ov-toggle-thumb { transform: translateX(16px); }
-    .ov-toggle-status {
-      font-size: var(--font-size-xs);
-      color: var(--color-text-muted);
-      min-width: 24px; text-align: right;
-      font-weight: var(--font-weight-medium);
-      transition: color var(--duration-normal) var(--ease);
-    }
-    .ov-toggle-status[data-on="true"] { color: var(--color-accent); }
-
-    /* Agency Permissions — collapsed-by-default disclosure (native <details>,
-       no JS needed to open/close). To make it always-visible instead, add
-       the `open` attribute to <details class="ov-disclosure"> below. */
-    .ov-disclosure summary {
-      list-style: none; cursor: pointer; user-select: none;
-      display: flex; align-items: center; justify-content: space-between;
-      min-height: 34px; padding: 3px 0;
-    }
-    .ov-disclosure summary::-webkit-details-marker { display: none; }
-    .ov-disclosure summary::after {
-      content: ''; pointer-events: none;
-      width: 6px; height: 6px;
-      border-right: 1.6px solid var(--color-text-muted);
-      border-bottom: 1.6px solid var(--color-text-muted);
-      transform: rotate(45deg);
-      transition: transform var(--duration-fast) var(--ease);
-    }
-    .ov-disclosure[open] summary::after { transform: rotate(-135deg); }
-    .ov-disclosure[open] summary { margin-bottom: 2px; }
-    /* Repeatable capability row — each future permission is just another
-       .ov-cap-row here, same shape as the Calendar one. */
-    .ov-cap-row {
-      display: flex; align-items: center; gap: var(--space-sm);
-      padding: 6px 0;
-    }
-    .ov-cap-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    .ov-cap-title {
-      font-size: var(--font-size-sm); color: var(--color-text-primary);
-      font-weight: var(--font-weight-medium);
-    }
-    .ov-cap-help {
-      font-size: var(--font-size-xs); color: var(--color-text-muted);
-      line-height: var(--line-height-normal);
-    }
+    .ov-settings-link:hover { background: var(--color-surface-active); }
 
     /* Sign out — left-aligned row, no border box */
     .ov-signout {
@@ -448,6 +398,83 @@
       transition: background var(--duration-fast) var(--ease);
     }
     .ov-signout:hover { background: var(--color-danger-subtle); }
+
+    /* ── Settings popup ───────────────────────────────────────
+       A deeper panel over the whole window, inset on all four sides so
+       the chat behind stays visible — no separate BrowserWindow, no
+       close button. Vertical list format; closes back to the account
+       menu on outside click (wired in the script below). */
+    #settingsPopup {
+      position: fixed; inset: var(--space-lg);
+      z-index: 200;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow-y: auto;
+
+      opacity: 0; pointer-events: none;
+      transform: scale(0.97);
+      transition:
+        opacity   var(--duration-normal) var(--ease),
+        transform var(--duration-normal) var(--ease);
+    }
+    #settingsPopup.is-open {
+      opacity: 1; pointer-events: auto;
+      transform: scale(1);
+    }
+    #settingsPopup .sp-section { padding: var(--space-md); }
+    #settingsPopup .sp-divider { height: 1px; background: var(--color-border); }
+
+    .sp-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--space-md); cursor: pointer;
+    }
+    .sp-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .sp-title {
+      font-size: var(--font-size-sm); color: var(--color-text-primary);
+      font-weight: var(--font-weight-semibold);
+    }
+    .sp-help {
+      font-size: var(--font-size-xs); color: var(--color-text-muted);
+      line-height: var(--line-height-normal);
+    }
+    /* Green when on, grey when off — same accent as the volume slider. */
+    .sp-toggle {
+      -webkit-appearance: none; appearance: none;
+      width: 38px; height: 22px; border-radius: var(--radius-full); flex-shrink: 0;
+      background: var(--color-neutral); border: none; position: relative;
+      cursor: pointer; transition: background var(--duration-fast) var(--ease);
+    }
+    .sp-toggle::before {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 18px; height: 18px; border-radius: var(--radius-full);
+      background: var(--color-surface); box-shadow: var(--shadow-sm);
+      transition: transform var(--duration-fast) var(--ease);
+    }
+    .sp-toggle:checked          { background: var(--color-accent); }
+    .sp-toggle:checked::before  { transform: translateX(16px); }
+    .sp-row.child { padding-left: 22px; gap: 10px; margin-top: 14px; }
+    .sp-row.child .sp-title { font-size: var(--font-size-xs); }
+    .sp-row.disabled { opacity: 0.45; }
+    .sp-row.disabled .sp-toggle { cursor: default; }
+    .sp-coming-soon {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px;
+      color: var(--color-text-muted); font-weight: var(--font-weight-semibold);
+      margin-left: 6px;
+    }
+    /* Calendar's nested "manage individual permissions" disclosure —
+       collapsed by default, native <details>, no JS needed to open/close. */
+    .sp-cal-manage { margin-top: 14px; }
+    .sp-cal-manage summary {
+      list-style: none; cursor: pointer; user-select: none;
+      font-size: var(--font-size-xs); color: var(--color-text-muted);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .sp-cal-manage summary::-webkit-details-marker { display: none; }
+    .sp-cal-manage summary::after { content: '›'; transition: transform var(--duration-fast) var(--ease); }
+    .sp-cal-manage[open] summary::after { transform: rotate(90deg); }
+    .sp-child-list { display: flex; flex-direction: column; }
   </style>
 </head>
 <body>
@@ -546,42 +573,8 @@
 
     <div class="ov-section">
       <div class="ov-row">
-        <span class="ov-label"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Screen watch</span>
-        <button class="ov-toggle" id="screenWatchToggle" data-on="false">
-          <span class="ov-toggle-thumb"></span>
-        </button>
-        <span class="ov-toggle-status" id="screenWatchStatus" data-on="false">OFF</span>
+        <button class="ov-settings-link" id="openSettingsBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
       </div>
-    </div>
-
-    <div class="ov-divider"></div>
-
-    <div class="ov-section">
-      <div class="ov-row">
-        <span class="ov-label"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.9 17.9 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>Do Not Disturb</span>
-        <button class="ov-toggle" id="dndToggle" data-on="false">
-          <span class="ov-toggle-thumb"></span>
-        </button>
-        <span class="ov-toggle-status" id="dndStatus" data-on="false">OFF</span>
-      </div>
-    </div>
-
-    <div class="ov-divider"></div>
-
-    <div class="ov-section">
-      <details class="ov-disclosure" id="agencyPermissions">
-        <summary><span class="ov-label"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>Agency Permissions</span></summary>
-        <div class="ov-cap-row">
-          <div class="ov-cap-copy">
-            <span class="ov-cap-title">Let her manage your calendar</span>
-            <span class="ov-cap-help">She can add events when you ask — turn off any time.</span>
-          </div>
-          <button class="ov-toggle" id="calendarToggle" data-on="false">
-            <span class="ov-toggle-thumb"></span>
-          </button>
-          <span class="ov-toggle-status" id="calendarStatus" data-on="false">OFF</span>
-        </div>
-      </details>
     </div>
 
     <div class="ov-divider"></div>
@@ -590,6 +583,83 @@
       <button class="ov-signout" id="logoutBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>Sign out</button>
     </div>
 
+  </div>
+
+  <!-- Settings popup — a second, deeper panel opened from the account
+       overlay's "Settings" row. Stays in this window (no separate
+       BrowserWindow); inset from all four edges so the chat behind stays
+       visible. No close button — clicking outside it returns to the
+       account menu (see the document click handler in the script below). -->
+  <div id="settingsPopup">
+    <div class="sp-section">
+      <label class="sp-row" for="dndToggle">
+        <div class="sp-copy">
+          <span class="sp-title">Do Not Disturb</span>
+          <span class="sp-help">Pause check-ins and nudges — shared with the tray menu.</span>
+        </div>
+        <input type="checkbox" id="dndToggle" class="sp-toggle">
+      </label>
+    </div>
+
+    <div class="sp-divider"></div>
+
+    <div class="sp-section">
+      <label class="sp-row" for="screenWatchToggle">
+        <div class="sp-copy">
+          <span class="sp-title">Screen watch</span>
+          <span class="sp-help">Let her see what's on your screen — shared with the tray menu.</span>
+        </div>
+        <input type="checkbox" id="screenWatchToggle" class="sp-toggle">
+      </label>
+    </div>
+
+    <div class="sp-divider"></div>
+
+    <div class="sp-section">
+      <label class="sp-row" for="calendarMasterToggle">
+        <div class="sp-copy">
+          <span class="sp-title">Calendar</span>
+          <span class="sp-help">Master switch — off means she can't touch your calendar at all.</span>
+        </div>
+        <input type="checkbox" id="calendarMasterToggle" class="sp-toggle">
+      </label>
+
+      <details class="sp-cal-manage">
+        <summary>Manage individual permissions</summary>
+        <!-- Repeatable row pattern — each future action is just another
+             .sp-row.child here. Shipping an action = remove its `disabled`. -->
+        <div class="sp-child-list">
+          <label class="sp-row child" for="calCreateToggle" id="calCreateRow">
+            <div class="sp-copy">
+              <span class="sp-title">Add events</span>
+              <span class="sp-help">She can add events when you ask.</span>
+            </div>
+            <input type="checkbox" id="calCreateToggle" class="sp-toggle">
+          </label>
+          <label class="sp-row child disabled" for="calListToggle" id="calListRow">
+            <div class="sp-copy">
+              <span class="sp-title">List events<span class="sp-coming-soon">Coming soon</span></span>
+              <span class="sp-help">She can look up what's on your calendar.</span>
+            </div>
+            <input type="checkbox" id="calListToggle" class="sp-toggle" disabled>
+          </label>
+          <label class="sp-row child disabled" for="calMoveToggle" id="calMoveRow">
+            <div class="sp-copy">
+              <span class="sp-title">Move events<span class="sp-coming-soon">Coming soon</span></span>
+              <span class="sp-help">She can reschedule existing events.</span>
+            </div>
+            <input type="checkbox" id="calMoveToggle" class="sp-toggle" disabled>
+          </label>
+          <label class="sp-row child disabled" for="calDeleteToggle" id="calDeleteRow">
+            <div class="sp-copy">
+              <span class="sp-title">Delete events<span class="sp-coming-soon">Coming soon</span></span>
+              <span class="sp-help">She can remove events from your calendar.</span>
+            </div>
+            <input type="checkbox" id="calDeleteToggle" class="sp-toggle" disabled>
+          </label>
+        </div>
+      </details>
+    </div>
   </div>
 
   <script>
@@ -1136,15 +1206,18 @@
   // Settings overlay
   // ---------------------------------------------------------------------------
 
-  const accountBtn      = document.getElementById('accountBtn');
-  const settingsOverlay = document.getElementById('settingsOverlay');
-  const volumeSlider    = document.getElementById('volumeSlider');
-  const volumeValueEl   = document.getElementById('volumeValue');
-  const personaSelect   = document.getElementById('personaSelect');
-  const voiceSelect     = document.getElementById('voiceSelect');
-  const avatarSelect    = document.getElementById('avatarSelect');
-  const logoutBtn       = document.getElementById('logoutBtn');
-  const themeButtons    = document.querySelectorAll('.ov-seg-btn');
+  const accountBtn        = document.getElementById('accountBtn');
+  const settingsOverlay   = document.getElementById('settingsOverlay');
+  const settingsPopup     = document.getElementById('settingsPopup');
+  const volumeSlider      = document.getElementById('volumeSlider');
+  const volumeValueEl     = document.getElementById('volumeValue');
+  const personaSelect     = document.getElementById('personaSelect');
+  const voiceSelect       = document.getElementById('voiceSelect');
+  const avatarSelect      = document.getElementById('avatarSelect');
+  const logoutBtn         = document.getElementById('logoutBtn');
+  const themeButtons      = document.querySelectorAll('.ov-seg-btn');
+  const dndToggle         = document.getElementById('dndToggle');
+  const screenWatchToggle = document.getElementById('screenWatchToggle');
 
   // Volume — persisted in localStorage, applied to GainNode
   let ttsVolume = parseFloat(localStorage.getItem('pistachio-volume') ?? '80') / 100;
@@ -1193,80 +1266,55 @@
 
   accountBtn.addEventListener('click', e => {
     e.stopPropagation();
+    closeSettingsPopup();
     settingsOverlay.classList.contains('is-open') ? closeOverlay() : openOverlay();
   });
 
-  // Clicks outside the overlay close it
+  // Clicks outside the overlay close it (but not while the deeper Settings
+  // popup has it covered — that click is handled by the popup's own
+  // outside-click listener below, which returns here instead of closing).
   document.addEventListener('click', e => {
+    if (settingsPopup.classList.contains('is-open')) return;
     if (settingsOverlay.classList.contains('is-open') && !settingsOverlay.contains(e.target))
       closeOverlay();
   });
 
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOverlay(); });
-
-  // Screen watch — toggle shared with the system tray
-  const screenWatchToggle = document.getElementById('screenWatchToggle');
-  const screenWatchStatus = document.getElementById('screenWatchStatus');
-
-  function _applyScreenWatch(on) {
-    const v = String(!!on);
-    screenWatchToggle.dataset.on = v;
-    screenWatchStatus.dataset.on = v;
-    screenWatchStatus.textContent = on ? 'ON' : 'OFF';
-  }
-
-  screenWatchToggle.addEventListener('click', async () => {
-    const next = screenWatchToggle.dataset.on !== 'true';
-    _applyScreenWatch(next);                        // optimistic update
-    await window.electronAPI.setScreenWatch(next);  // tells main → tray
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (settingsPopup.classList.contains('is-open')) { closeSettingsPopup(); openOverlay(); }
+    else closeOverlay();
   });
 
-  // Keep in sync when toggled from the system tray
-  window.electronAPI.onScreenWatchChanged(on => _applyScreenWatch(on));
-
-  // Do Not Disturb — toggle shared with the system tray
-  const dndToggle = document.getElementById('dndToggle');
-  const dndStatus = document.getElementById('dndStatus');
-
-  function _applyDnd(on) {
-    const v = String(!!on);
-    dndToggle.dataset.on = v;
-    dndStatus.dataset.on = v;
-    dndStatus.textContent = on ? 'ON' : 'OFF';
+  // Settings popup — DND / Screen watch / Calendar. Stays in this window;
+  // opening it swaps out the account overlay rather than layering on top.
+  function openSettingsPopup() {
+    settingsPopup.classList.add('is-open');
+  }
+  function closeSettingsPopup() {
+    settingsPopup.classList.remove('is-open');
   }
 
-  dndToggle.addEventListener('click', async () => {
-    const next = dndToggle.dataset.on !== 'true';
-    _applyDnd(next);
-    await window.electronAPI.setDnd(next);
+  document.getElementById('openSettingsBtn').addEventListener('click', e => {
+    e.stopPropagation();   // else this same click bubbles to the "outside
+                            // popup" listener below and closes it right back
+    closeOverlay();
+    openSettingsPopup();
   });
 
-  window.electronAPI.onDndChanged(on => _applyDnd(on));
-
-  // Calendar permission — profiles.calendar_enabled, persisted the same way as
-  // persona/voice/avatar (loadSettings/saveSettings → Supabase), NOT the
-  // screen-watch/DND pattern above (that's ephemeral main-process/tray state).
-  const calendarToggle = document.getElementById('calendarToggle');
-  const calendarStatus = document.getElementById('calendarStatus');
-
-  function _applyCalendarEnabled(on) {
-    const v = String(!!on);
-    calendarToggle.dataset.on = v;
-    calendarStatus.dataset.on = v;
-    calendarStatus.textContent = on ? 'ON' : 'OFF';
-  }
-
-  calendarToggle.addEventListener('click', async () => {
-    const next = calendarToggle.dataset.on !== 'true';
-    _applyCalendarEnabled(next);   // optimistic update, mirrors screen-watch/DND above
-    await _saveSettings();
+  // Clicking anywhere outside the popup returns to the account menu —
+  // there's no close (X) button by design.
+  document.addEventListener('click', e => {
+    if (settingsPopup.classList.contains('is-open') && !settingsPopup.contains(e.target)) {
+      closeSettingsPopup();
+      openOverlay();
+    }
   });
 
-  // Load personas / voices / avatars from Supabase on first open
+  // Load personas / voices / avatars / calendar prefs from Supabase on first open
   async function _loadOverlayData() {
-    // Seed screen-watch and DND toggles with current tray state
-    window.electronAPI.getScreenWatch().then(on => _applyScreenWatch(on));
-    window.electronAPI.getDnd().then(on => _applyDnd(on));
+    // Seed DND / Screen watch from current tray state
+    window.electronAPI.getDnd().then(on => { dndToggle.checked = !!on; });
+    window.electronAPI.getScreenWatch().then(on => { screenWatchToggle.checked = !!on; });
 
     try {
       const { personas, voices, avatars, profile } = await window.electronAPI.loadSettings();
@@ -1278,7 +1326,15 @@
       fill(personaSelect, personas, profile.persona_id);
       fill(voiceSelect,   voices,   profile.voice_id);
       fill(avatarSelect,  avatars,  profile.avatar_id);
-      _applyCalendarEnabled(profile.calendar_enabled); // guarded (!!) inside the helper
+
+      // All five columns are boolean not null default false — !! just
+      // guards the pre-migration/empty-row case where profile is {}.
+      document.getElementById('calendarMasterToggle').checked = !!profile.calendar_enabled;
+      document.getElementById('calCreateToggle').checked      = !!profile.calendar_create_enabled;
+      document.getElementById('calListToggle').checked        = !!profile.calendar_list_enabled;
+      document.getElementById('calMoveToggle').checked        = !!profile.calendar_move_enabled;
+      document.getElementById('calDeleteToggle').checked      = !!profile.calendar_delete_enabled;
+      _applyCalendarMasterGate();
     } catch (err) {
       console.error('[settings] load failed:', err);
       personaSelect.innerHTML = voiceSelect.innerHTML = avatarSelect.innerHTML =
@@ -1290,10 +1346,9 @@
   async function _saveSettings() {
     try {
       await window.electronAPI.saveSettings({
-        personaId:       personaSelect.value,
-        voiceId:         voiceSelect.value,
-        avatarId:        avatarSelect.value,
-        calendarEnabled: calendarToggle.dataset.on === 'true', // real boolean, not a string
+        personaId: personaSelect.value,
+        voiceId:   voiceSelect.value,
+        avatarId:  avatarSelect.value,
       });
     } catch (err) {
       console.error('[settings] save failed:', err);
@@ -1306,6 +1361,62 @@
     await _saveSettings();
     bc.postMessage({ type: 'avatar_changed' });
   });
+
+  // Do Not Disturb / Screen watch — shared state with the system tray.
+  // Every toggle in the Settings popup saves immediately on change; there's
+  // no batch Save button.
+  dndToggle.addEventListener('change', async () => {
+    await window.electronAPI.setDnd(dndToggle.checked);
+  });
+  window.electronAPI.onDndChanged(on => { dndToggle.checked = !!on; });
+
+  screenWatchToggle.addEventListener('change', async () => {
+    await window.electronAPI.setScreenWatch(screenWatchToggle.checked);
+  });
+  window.electronAPI.onScreenWatchChanged(on => { screenWatchToggle.checked = !!on; });
+
+  // Calendar — master-gates-children: while the master switch is off, no
+  // child action can run, so grey out + disable every child row. When
+  // master is on, only LIVE actions (currently just create) actually
+  // become interactive — the "coming soon" rows stay disabled regardless
+  // via their own `disabled` attribute in the markup.
+  const CALENDAR_CHILD_ROWS = [
+    { row: 'calCreateRow', input: 'calCreateToggle', live: true },
+    { row: 'calListRow',   input: 'calListToggle',   live: false },
+    { row: 'calMoveRow',   input: 'calMoveToggle',   live: false },
+    { row: 'calDeleteRow', input: 'calDeleteToggle', live: false },
+  ];
+
+  function _applyCalendarMasterGate() {
+    const masterOn = document.getElementById('calendarMasterToggle').checked;
+    CALENDAR_CHILD_ROWS.forEach(({ row, input, live }) => {
+      const interactive = masterOn && live;
+      document.getElementById(row).classList.toggle('disabled', !interactive);
+      document.getElementById(input).disabled = !interactive;
+    });
+  }
+
+  // Save the current state of all five calendar fields as one snapshot —
+  // simpler and safer than tracking which single field changed.
+  async function _saveCalendarPermissions() {
+    try {
+      await window.electronAPI.saveSettings({
+        calendarEnabled:       document.getElementById('calendarMasterToggle').checked,
+        calendarCreateEnabled: document.getElementById('calCreateToggle').checked,
+        calendarListEnabled:   document.getElementById('calListToggle').checked,
+        calendarMoveEnabled:   document.getElementById('calMoveToggle').checked,
+        calendarDeleteEnabled: document.getElementById('calDeleteToggle').checked,
+      });
+    } catch (err) {
+      console.error('[settings] calendar save failed:', err);
+    }
+  }
+
+  document.getElementById('calendarMasterToggle').addEventListener('change', () => {
+    _applyCalendarMasterGate();
+    _saveCalendarPermissions();
+  });
+  document.getElementById('calCreateToggle').addEventListener('change', _saveCalendarPermissions);
 
   // Logout
   logoutBtn.addEventListener('click', async () => {

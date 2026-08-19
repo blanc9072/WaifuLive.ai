@@ -103,6 +103,17 @@ _NUDGE_MAX_PER_DAY = 6
 _NUDGE_MIN_GAP_SEC = 45 * 60
 _nudge_log: dict[str, list[float]] = {}
 
+# Resolver tool name -> per-action permission key in fetch_calendar_permissions().
+# Only create_event is resolved today; list/move/delete are placeholders the
+# upcoming resolver prompts will match against. Any tool not in this map is
+# treated as unmapped and denied by default.
+_CALENDAR_TOOL_PERMISSIONS = {
+    "create_event": "create",
+    "list_events":  "list",
+    "move_event":   "move",
+    "delete_event": "delete",
+}
+
 
 def _nudge_allowed(user_id: str) -> bool:
     import time
@@ -342,12 +353,15 @@ async def chat(
                          resolved.status, resolved.tool, resolved.args)
                 # Stage 3: actually execute resolved create_event calls. Never
                 # raises — a clean "error" result on failure, /chat still returns.
-                # Permission is per-user (profiles.calendar_enabled, set via the
-                # Agency Permissions toggle in Settings) — fetched fresh each
-                # time so a user flipping it off takes effect on their very
-                # next message, not just after some cache expires.
+                # Permission is per-user (profiles.calendar_enabled master switch
+                # plus a per-action grant, set via the Agency Permissions toggles
+                # in Settings) — fetched fresh each time so a user flipping it
+                # off takes effect on their very next message, not just after
+                # some cache expires. Unmapped/future tools default to denied.
                 if resolved.status == "resolved" and resolved.tool == "create_event":
-                    cal_enabled = await db.fetch_calendar_enabled(user_id)
+                    perms = await db.fetch_calendar_permissions(user_id)
+                    action_key = _CALENDAR_TOOL_PERMISSIONS.get(resolved.tool)
+                    cal_enabled = perms["master"] and perms.get(action_key, False)
                     calendar_action = await create_calendar_event(resolved.args, enabled=cal_enabled)
                     log.info("[stage3] execution result (calendar_enabled=%s): %s",
                              cal_enabled, calendar_action)

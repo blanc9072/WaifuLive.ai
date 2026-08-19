@@ -215,8 +215,9 @@ async def fetch_voice_tts_ref(user_id: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 async def fetch_calendar_enabled(user_id: str) -> bool:
-    """Return profiles.calendar_enabled for the user. Default-deny: no profile
-    row, NULL column, or any DB error all return False — never assume consent."""
+    """Return profiles.calendar_enabled (the master switch) for the user.
+    Default-deny: no profile row, NULL column, or any DB error all return
+    False — never assume consent."""
     def _():
         try:
             rows = (
@@ -230,6 +231,39 @@ async def fetch_calendar_enabled(user_id: str) -> bool:
         except Exception:
             log.warning("fetch_calendar_enabled failed for user=%s — defaulting to disabled", user_id)
             return False
+    return await _run(_)
+
+
+async def fetch_calendar_permissions(user_id: str) -> dict:
+    """Return the master switch plus per-action calendar grants for the user:
+    {"master": bool, "create": bool, "list": bool, "move": bool, "delete": bool}.
+
+    Default-deny across the board: no profile row, a NULL/missing column
+    (e.g. pre-migration), or any DB error all resolve every flag to False —
+    this never raises, so a caller can trust the dict even before the
+    per-action columns exist.
+    """
+    def _():
+        try:
+            rows = (
+                _sb().table("profiles")
+                .select("calendar_enabled,calendar_create_enabled,calendar_list_enabled,"
+                        "calendar_move_enabled,calendar_delete_enabled")
+                .eq("id", user_id)
+                .execute()
+                .data
+            )
+            row = rows[0] if rows else {}
+            return {
+                "master": bool(row.get("calendar_enabled")),
+                "create": bool(row.get("calendar_create_enabled")),
+                "list":   bool(row.get("calendar_list_enabled")),
+                "move":   bool(row.get("calendar_move_enabled")),
+                "delete": bool(row.get("calendar_delete_enabled")),
+            }
+        except Exception:
+            log.warning("fetch_calendar_permissions failed for user=%s — defaulting to all disabled", user_id)
+            return {"master": False, "create": False, "list": False, "move": False, "delete": False}
     return await _run(_)
 
 

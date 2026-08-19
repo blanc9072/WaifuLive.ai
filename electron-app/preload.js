@@ -12,10 +12,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onToggleMic:    (cb) => ipcRenderer.on('toggle-mic', cb),
   closeChat:      ()   => ipcRenderer.send('close-chat'),
   captureScreen:  ()   => ipcRenderer.invoke('capture-screen'),
-  openSettings:   ()   => ipcRenderer.send('open-settings'),
-
-  // ── Settings window ───────────────────────────────────────────────────────
-  closeSettings:  ()   => ipcRenderer.send('close-settings'),
 
   // ── Auth (credentials/token never touch the renderer) ────────────────────
   login:   (email, password) => ipcRenderer.invoke('auth:login',  { email, password }),

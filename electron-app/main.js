@@ -179,10 +179,10 @@ function _tokenExpiry(token) {
 
 function _forceLogin() {
   clearStoredSession();
-  for (const w of [modelWindow, chatWindow, settingsWindow]) {
+  for (const w of [modelWindow, chatWindow]) {
     try { if (w && !w.isDestroyed()) w.close(); } catch (_) {}
   }
-  modelWindow = chatWindow = settingsWindow = null;
+  modelWindow = chatWindow = null;
   chatVisible = false;
   createLoginWindow();
 }
@@ -225,7 +225,6 @@ async function getValidToken() {
 let loginWindow       = null;
 let modelWindow       = null;
 let chatWindow        = null;
-let settingsWindow    = null;
 let chatVisible       = false;
 let dragMode          = false;
 let dragOffsetX       = 0;
@@ -397,22 +396,6 @@ function createChatWindow() {
   _disableCloseShortcut(chatWindow);
 }
 
-function createSettingsWindow() {
-  if (settingsWindow) { settingsWindow.focus(); return; }
-  settingsWindow = new BrowserWindow({
-    width: 480, height: 540,
-    resizable: false, frame: false,
-    alwaysOnTop: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
-    },
-  });
-  settingsWindow.loadFile('src/settings.html');
-  settingsWindow.on('closed', () => { settingsWindow = null; });
-}
-
 function toggleChat() {
   if (!chatWindow) return;
   if (chatVisible) { chatWindow.hide(); chatVisible = false; }
@@ -511,7 +494,6 @@ ipcMain.handle('auth:logout', () => {
   stopTimers();
   if (modelWindow)    { modelWindow.close(); }
   if (chatWindow)     { chatWindow.close(); }
-  if (settingsWindow) { settingsWindow.close(); }
   chatVisible = false;
   createLoginWindow();
 });
@@ -645,7 +627,8 @@ ipcMain.handle('settings:load', async () => {
     sbGet('/rest/v1/voices?select=id,name,description,is_default&order=name', token),
     sbGet('/rest/v1/avatars?select=id,name,file_path,is_default&order=name', token),
     sbGet(
-      `/rest/v1/profiles?id=eq.${session.user_id}&select=persona_id,voice_id,avatar_id,calendar_enabled`,
+      `/rest/v1/profiles?id=eq.${session.user_id}&select=persona_id,voice_id,avatar_id,` +
+      `calendar_enabled,calendar_create_enabled,calendar_list_enabled,calendar_move_enabled,calendar_delete_enabled`,
       token,
     ),
   ]);
@@ -653,16 +636,30 @@ ipcMain.handle('settings:load', async () => {
   return { personas, voices, avatars, profile };
 });
 
-ipcMain.handle('settings:save', async (_, { personaId, voiceId, avatarId, calendarEnabled }) => {
+// JS payload key -> profiles column. Different call sites in chat.html send
+// different shapes (the account overlay sends persona/voice/avatar only; the
+// in-page Settings popup sends only the five calendar fields) — only keys
+// actually present in the incoming payload are written, so a caller that
+// omits a field can't null it out on an existing row (sbUpsert's
+// merge-duplicates only touches columns present in the body).
+const SETTINGS_FIELD_MAP = {
+  personaId:              'persona_id',
+  voiceId:                'voice_id',
+  avatarId:               'avatar_id',
+  calendarEnabled:        'calendar_enabled',
+  calendarCreateEnabled:  'calendar_create_enabled',
+  calendarListEnabled:    'calendar_list_enabled',
+  calendarMoveEnabled:    'calendar_move_enabled',
+  calendarDeleteEnabled:  'calendar_delete_enabled',
+};
+
+ipcMain.handle('settings:save', async (_, payload) => {
   const token = await getValidToken();
-  await sbUpsert(
-    '/rest/v1/profiles',
-    {
-      id: session.user_id, persona_id: personaId, voice_id: voiceId, avatar_id: avatarId,
-      calendar_enabled: calendarEnabled,
-    },
-    token,
-  );
+  const body = { id: session.user_id };
+  for (const [jsKey, column] of Object.entries(SETTINGS_FIELD_MAP)) {
+    if (payload[jsKey] !== undefined) body[column] = payload[jsKey];
+  }
+  await sbUpsert('/rest/v1/profiles', body, token);
   return { ok: true };
 });
 
@@ -672,12 +669,6 @@ ipcMain.handle('settings:save', async (_, { personaId, voiceId, avatarId, calend
 
 ipcMain.on('close-chat', () => {
   if (chatWindow) { chatWindow.hide(); chatVisible = false; }
-});
-
-ipcMain.on('open-settings', () => createSettingsWindow());
-
-ipcMain.on('close-settings', () => {
-  if (settingsWindow) settingsWindow.close();
 });
 
 ipcMain.on('set-ignore-mouse', (_, ignore) => {
