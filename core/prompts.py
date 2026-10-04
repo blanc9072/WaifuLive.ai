@@ -97,7 +97,16 @@ def build_dynamic_prompt(session=None) -> str:
     session — a UserSession (or any object with .long_term_memory and .working_memory).
               Pass None to use empty defaults (e.g. for the voice relay).
     """
-    live_datetime = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p Pacific Time")
+    now = datetime.now()
+    # Real local zone abbreviation (e.g. "EDT"), not a hardcoded guess —
+    # this used to always say "Pacific Time" regardless of the machine's
+    # actual timezone, which was simply wrong on a machine set to Eastern.
+    # The naive `now` value itself was always correct local time; only
+    # this label was ever wrong, so fixing it doesn't change any window/
+    # date computation anywhere.
+    tz_name = now.astimezone().strftime("%Z") or "local time"
+    live_datetime = now.strftime(f"%A, %B %d, %Y at %I:%M %p {tz_name}")
+    today_iso     = now.strftime("%Y-%m-%d")
 
     if session is not None:
         ltm = session.long_term_memory
@@ -128,14 +137,32 @@ def build_dynamic_prompt(session=None) -> str:
         f"like a search engine, and don't announce that you searched.]\n\n"
         f"[OOC TOOL SIGNALING: You can't directly use tools, but you can request actions on "
         f"{'Andrew' if session else 'the user'}'s behalf. When they ask you to do something with "
-        f"their CALENDAR — create, add, schedule, check, list, move, or delete an event — respond "
-        f"normally and in character, then on a NEW LINE at the very END of your message emit exactly:\n"
+        f"their CALENDAR, first work out which kind of request it is:\n\n"
+        f"READ requests — checking or listing what's on the calendar. This covers obvious "
+        f"phrasings (check, list, show, what's on) AND casual ones that mean the same thing: "
+        f"'what am I up to', 'what's my day look like', 'what am I doing today', 'anything on "
+        f"today', 'remind me what I'm doing'. For THESE: the in-character text you write before "
+        f"the tag must be a CONTENT-FREE acknowledgment ONLY — e.g. 'let me check,' 'one sec, "
+        f"pulling it up.' You do NOT know the calendar's contents yet when you write this — the "
+        f"tool answers, not you. Do NOT state, list, or guess a single event, time, or schedule "
+        f"detail, and NEVER invent a routine ('you have breakfast at 8am...') — you have no idea "
+        f"what's actually on the calendar until the tool runs.\n\n"
+        f"WRITE requests — create, add, schedule, set up, move, reschedule, change, delete, "
+        f"remove, or cancel an event. For THESE, respond normally and in character (e.g. 'sure, "
+        f"adding that!') — a generic confirmation here isn't factually wrong.\n\n"
+        f"DELETE/REMOVE/CANCEL requests specifically — when you describe what to delete in the "
+        f"tag below, use the user's ACTUAL words for the event name. Do NOT add generic nouns "
+        f"they didn't say — 'delete gym' becomes '<action>calendar: delete gym</action>', never "
+        f"'delete the gym event' or 'delete the gym meeting'. The tool matches your wording "
+        f"against the real calendar title, so an invented word makes it match nothing.\n\n"
+        f"Either way, on a NEW LINE at the very END of your message emit exactly:\n"
         f"<action>calendar: PLAIN ENGLISH DESCRIPTION</action>\n"
-        f"The description must include everything relevant they said (what, when, who). Compute "
-        f"relative dates ('tomorrow', 'next monday') from the current date/time above — never guess "
-        f"the date. Only emit this tag for genuine calendar requests. NEVER emit it for ordinary "
-        f"chat, feelings, or questions. Never mention or explain the tag. If no calendar action is "
-        f"needed, don't emit anything.]\n\n"
+        f"The description must include everything relevant they said (what, when, who). If they "
+        f"say 'today', use EXACTLY {today_iso} as given above — do NOT advance to the next day. "
+        f"Compute other relative dates ('tomorrow', 'next monday') from the current date/time "
+        f"above — never guess the date. Only emit this tag for genuine calendar requests. NEVER "
+        f"emit it for ordinary chat, feelings, or questions. Never mention or explain the tag. If "
+        f"no calendar action is needed, don't emit anything.]\n\n"
         f"{ltm_block}\n\n"
         f"{wm.to_prompt_block()}"
     )

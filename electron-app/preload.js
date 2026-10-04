@@ -20,10 +20,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUser: ()                => ipcRenderer.invoke('auth:getUser'),
 
   // ── Backend proxy (main injects the token before forwarding) ─────────────
-  sendChat:   (payload)  => ipcRenderer.invoke('api:chat',       payload),
-  transcribe: (audioB64) => ipcRenderer.invoke('api:transcribe', audioB64),
-  nudge:      (payload)  => ipcRenderer.invoke('api:nudge',      payload),
-  onNudge:    (cb)       => ipcRenderer.on('nudge', (_, data) => cb(data)),
+  sendChat:     (payload)         => ipcRenderer.invoke('api:chat',       payload),
+  transcribe:   (audioB64)        => ipcRenderer.invoke('api:transcribe', audioB64),
+  nudge:        (payload)         => ipcRenderer.invoke('api:nudge',      payload),
+  onNudge:      (cb)              => ipcRenderer.on('nudge', (_, data) => cb(data)),
+  deleteByUid:  (uid, calendar)   => ipcRenderer.invoke('api:deleteByUid', { uid, calendar }),
+  moveByUid:    (uid, calendar, newStart, newEnd) =>
+                  ipcRenderer.invoke('api:moveByUid', { uid, calendar, newStart, newEnd }),
+  addSlots:     (activity, slots, prefDelta) =>
+                  ipcRenderer.invoke('api:addSlots', { activity, slots, prefDelta }),
+  correctPlan:  (payload)          => ipcRenderer.invoke('api:correctPlan', payload),
+  getSchedulingPrefs:   ()          => ipcRenderer.invoke('api:getSchedulingPrefs'),
+  resetSchedulingPrefs: (activity)  => ipcRenderer.invoke('api:resetSchedulingPrefs', { activity }),
 
   // ── Settings data ─────────────────────────────────────────────────────────
   loadSettings:  ()       => ipcRenderer.invoke('settings:load'),

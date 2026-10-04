@@ -113,6 +113,8 @@
       max-width: 75%; padding: 9px 13px;
       border-radius: var(--radius-lg); font-size: var(--font-size-base);
       line-height: var(--line-height-normal); word-wrap: break-word;
+      white-space: pre-line;   /* renders \n as real line breaks — used by
+                                   the "which one?" numbered candidate list */
     }
     .bubble.user {
       align-self: flex-end;
@@ -148,7 +150,8 @@
       color: var(--color-accent-on);
     }
     .bubble.action.app_disabled,
-    .bubble.action.os_denied {
+    .bubble.action.os_denied,
+    .bubble.action.needs_permission {
       background: var(--color-danger-subtle);
       border-color: var(--color-danger);
       color: var(--color-danger);
@@ -475,6 +478,35 @@
     .sp-cal-manage summary::after { content: '›'; transition: transform var(--duration-fast) var(--ease); }
     .sp-cal-manage[open] summary::after { transform: rotate(90deg); }
     .sp-child-list { display: flex; flex-direction: column; }
+
+    /* Learned scheduling preferences (S5) — a second, equally-buried
+       <details> disclosure below the calendar block; same subdued
+       styling as .sp-cal-manage so it never competes for attention. */
+    .sp-sched-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--space-sm); padding: 6px 0;
+    }
+    .sp-sched-row .sp-title {
+      font-size: var(--font-size-xs); font-weight: var(--font-weight-normal);
+      color: var(--color-text-primary); line-height: var(--line-height-normal);
+    }
+    .sp-forget-btn {
+      flex-shrink: 0; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+      background: transparent; color: var(--color-text-muted);
+      font-size: 10px; font-weight: var(--font-weight-semibold);
+      text-transform: uppercase; letter-spacing: 0.3px;
+      padding: 4px 8px; cursor: pointer; font-family: var(--font-family);
+      transition: background var(--duration-fast) var(--ease),
+                  color var(--duration-fast) var(--ease),
+                  border-color var(--duration-fast) var(--ease);
+    }
+    .sp-forget-btn:hover {
+      background: var(--color-danger-subtle); color: var(--color-danger); border-color: var(--color-danger);
+    }
+    .sp-forget-all { width: 100%; text-align: center; margin-top: 10px; }
+    .sp-sched-empty {
+      font-size: var(--font-size-xs); color: var(--color-text-muted); padding: 4px 0;
+    }
   </style>
 </head>
 <body>
@@ -636,28 +668,42 @@
             </div>
             <input type="checkbox" id="calCreateToggle" class="sp-toggle">
           </label>
-          <label class="sp-row child disabled" for="calListToggle" id="calListRow">
+          <label class="sp-row child" for="calListToggle" id="calListRow">
             <div class="sp-copy">
-              <span class="sp-title">List events<span class="sp-coming-soon">Coming soon</span></span>
+              <span class="sp-title">List events</span>
               <span class="sp-help">She can look up what's on your calendar.</span>
             </div>
-            <input type="checkbox" id="calListToggle" class="sp-toggle" disabled>
+            <input type="checkbox" id="calListToggle" class="sp-toggle">
           </label>
-          <label class="sp-row child disabled" for="calMoveToggle" id="calMoveRow">
+          <label class="sp-row child" for="calMoveToggle" id="calMoveRow">
             <div class="sp-copy">
-              <span class="sp-title">Move events<span class="sp-coming-soon">Coming soon</span></span>
+              <span class="sp-title">Move events</span>
               <span class="sp-help">She can reschedule existing events.</span>
             </div>
-            <input type="checkbox" id="calMoveToggle" class="sp-toggle" disabled>
+            <input type="checkbox" id="calMoveToggle" class="sp-toggle">
           </label>
-          <label class="sp-row child disabled" for="calDeleteToggle" id="calDeleteRow">
+          <label class="sp-row child" for="calDeleteToggle" id="calDeleteRow">
             <div class="sp-copy">
-              <span class="sp-title">Delete events<span class="sp-coming-soon">Coming soon</span></span>
-              <span class="sp-help">She can remove events from your calendar.</span>
+              <span class="sp-title">Delete events</span>
+              <span class="sp-help">She can remove events from your calendar (single events only — not repeating ones).</span>
             </div>
-            <input type="checkbox" id="calDeleteToggle" class="sp-toggle" disabled>
+            <input type="checkbox" id="calDeleteToggle" class="sp-toggle">
           </label>
         </div>
+      </details>
+    </div>
+
+    <div class="sp-divider"></div>
+
+    <!-- Learned scheduling preferences (S5) — buried, collapsed by
+         default like calendar's "manage individual permissions". Fetched
+         and rendered lazily on open (see the 'toggle' listener below), not
+         on every settings-popup open. Touches NO calendar — no permission
+         gate applies here at all, only auth/RLS. -->
+    <div class="sp-section">
+      <details class="sp-cal-manage" id="schedPrefsDetails">
+        <summary>Learned scheduling preferences</summary>
+        <div class="sp-child-list" id="schedPrefsList"></div>
       </details>
     </div>
   </div>
@@ -679,7 +725,9 @@
   let micOn        = false;
   let ws           = null;
   let audioCtx     = null;
-  let gainNode     = null;    // shared gain for all TTS / voice audio
+  let gainNode     = null;    // 24kHz context's gain — Live PCM voice path only
+  let ttsCtx       = null;
+  let ttsGainNode  = null;    // native-rate context's gain — ElevenLabs TTS playback only
   let mediaStream  = null;
   let processor    = null;
   let audioQueue   = [];
@@ -689,6 +737,36 @@
   let transcriptTimer  = null;
   let userTranscriptBuffer = '';
   let userTranscriptTimer  = null;
+
+  // Delete/move follow-up disambiguation state — set whenever a
+  // delete_event()/move_event() turn comes back "disambiguate" (candidates
+  // the user must pick between), cleared on any resolution (success, a
+  // dropped-out escape hatch, or any other terminal calendar status).
+  // null | { kind, mode, candidate?, candidates, newStart?, newEnd? }
+  //   kind "delete" | "move" — which action a confirmed pick actually runs
+  //   mode "list"    — showing/awaiting a pick among 2+ candidates
+  //   mode "confirm" — awaiting yes/no on ONE specific candidate
+  //   newStart/newEnd — move only: the originally-requested destination
+  //     time, carried through disambiguation so a resolved pick still
+  //     applies the intended new time (see doMove).
+  let disambig = null;
+
+  // Scheduler proposal pending state — set whenever a suggest_slots() turn
+  // comes back status:"plan" (candidate slots the user must accept/adjust
+  // before anything is written), cleared on any resolution (added,
+  // rejected, a dropped-out escape hatch, or any other new backend turn).
+  // See buildPendingPlan for the exact shape: activity, slots, breakdown,
+  // block_min, the structured pad_before/pad_after/default_duration/
+  // tod_pref fields, the original window/count/day_exclusions (carried
+  // forward so a correction can re-plan without re-deriving them), and
+  // prefDelta (S4) — null until a correction actually applies one; only
+  // ever sent to /calendar/add_slots, and only written server-side on
+  // that accept call. Padding CORRECTIONS ("I shower at home") are
+  // handled by tryCorrectPlan (S4) — see sendMessage's dispatch: a
+  // message that isn't a recognized yes/no/day-drop is tried there
+  // FIRST, and only falls through to the escape hatch if the backend
+  // itself declines to recognize it as a correction.
+  let pendingPlan = null;
 
   const bc = new BroadcastChannel('pistachio');
 
@@ -706,10 +784,11 @@
 
   // Renders a FINISHED tool outcome only — never a pending/optimistic state.
   const ACTION_GLYPHS = {
-    success:      '✓',
-    app_disabled: '🔒',
-    os_denied:    '🔒',
-    error:        '⚠',
+    success:          '✓',
+    app_disabled:     '🔒',
+    os_denied:        '🔒',
+    needs_permission: '🔒',
+    error:            '⚠',
   };
 
   function addActionBubble(text, status) {
@@ -753,9 +832,682 @@
         return "you haven't given me calendar permission — turn it on in Settings";
       case 'os_denied':
         return 'macOS is blocking me — enable it in System Settings › Privacy & Security';
+      case 'needs_permission':
+        return 'I need Calendar access — grant Full Calendar access in System Settings › Privacy & Security › Calendars';
       default:   // "error", plus any status this build doesn't know yet
-        return "couldn't add that to your calendar";
+        return action.kind === 'list'
+          ? "couldn't check your calendar right now"
+          : "couldn't add that to your calendar";
     }
+  }
+
+  // ── list_events rendering ───────────────────────────────────────────────
+  // Shape mirrors core/calendar_executor.py → list_events():
+  //   { status, kind:"list", date:"YYYY-MM-DD", events:[{uid,title,start,end,all_day,calendar}],
+  //     unreachable?:[calendarName,...] }
+  // Only status:"success" renders here — app_disabled/os_denied/error reuse
+  // calendarActionText()+addActionBubble() like create does. `unreachable`
+  // can be present even on a "success" read (some calendars answered, one
+  // or more didn't) — the fix for a real bug: a read that silently dropped
+  // an unreachable calendar's events used to be indistinguishable from a
+  // genuinely empty day. Both render functions below must say so whenever
+  // `unreachable` is non-empty, even when the events list is otherwise
+  // empty — "nothing on your calendar" is reserved for the case where
+  // EVERY calendar actually answered.
+
+  // Local-ISO clock time only (no weekday) — mirrors formatEventWhen's time
+  // formatting, but the day is already stated once at the front of the
+  // summary line. Returns null for all-day events so the caller falls back
+  // to "<title> all day".
+  function formatEventTime(ev) {
+    if (ev.all_day || !ev.start) return null;
+    const d = new Date(ev.start);   // naive local ISO — parsed as local time
+    if (isNaN(d)) return null;
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function formatListDateLabel(dateStr) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr || '');
+    if (!m) return 'that day';
+    const target = new Date(+m[1], +m[2] - 1, +m[3]);
+    const tomorrow = new Date();
+    tomorrow.setHours(0, 0, 0, 0);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (target.getTime() === tomorrow.getTime()) return 'tomorrow';
+    return target.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+  }
+
+  function joinWithAnd(items) {
+    if (items.length <= 1) return items[0] || '';
+    if (items.length === 2) return `${items[0]} and ${items[1]}`;
+    return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+  }
+
+  function calendarListSummaryText(action) {
+    const dateLabel = formatListDateLabel(action.date);
+    const events = (action.events || [])
+      .slice()
+      .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    if (events.length === 0) return `nothing on your calendar ${dateLabel}`;
+    const parts = events.map(ev => {
+      const title = (ev.title || '').trim() || 'an event';
+      const time  = formatEventTime(ev);
+      return time ? `${title} at ${time}` : `${title} all day`;
+    });
+    return `${dateLabel} you've got ${joinWithAnd(parts)}`;
+  }
+
+  // Short line for the ✓ action box — the readable event-by-event text goes
+  // in a separate plaintext bubble underneath (calendarListSummaryText).
+  function calendarListActionBoxText(action) {
+    const dateLabel = formatListDateLabel(action.date);
+    const count = (action.events || []).length;
+    if (count === 0) return `your calendar's clear ${dateLabel}`;
+    return `checked your calendar — ${count} event${count === 1 ? '' : 's'} ${dateLabel}`;
+  }
+
+  // ── multi-day (range) list_events rendering ─────────────────────────────
+  // Shape mirrors core/calendar_executor.py → list_events() RANGE path:
+  //   { status, kind:"list", window_start:"YYYY-MM-DD", window_end:"YYYY-MM-DD",
+  //     events:[{uid,title,start,end,all_day,calendar}], unreachable?:[...] }
+  // Distinguished from the single-day shape by the presence of
+  // window_start (single-day carries `date` instead — never both). Same
+  // phantom-fence suppression applies (see isListOrPlanAction above); this
+  // is purely a different RENDER of the same kind:"list" success status,
+  // not a new dispatch branch.
+
+  function groupEventsByDay(events) {
+    const byDay = new Map();
+    for (const ev of events) {
+      const dayKey = (ev.start || '').slice(0, 10);
+      if (!dayKey) continue;
+      if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+      byDay.get(dayKey).push(ev);
+    }
+    return [...byDay.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([day, evs]) => [day, evs.slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''))]);
+  }
+
+  // Grouped BY DAY, sorted, all-day events rendered as "<title> all day" —
+  // same per-event formatting as the single-day render (formatEventTime),
+  // just grouped under a weekday/date heading per line instead of one flat
+  // sentence.
+  function calendarRangeSummaryText(action) {
+    const events = action.events || [];
+    if (events.length === 0) return `nothing this week`;
+    const grouped = groupEventsByDay(events);
+    const lines = grouped.map(([day, evs]) => {
+      const dayLabel = formatListDateLabel(day);
+      const parts = evs.map(ev => {
+        const title = (ev.title || '').trim() || 'an event';
+        const time  = formatEventTime(ev);
+        return time ? `${title} at ${time}` : `${title} all day`;
+      });
+      return `${dayLabel}: ${joinWithAnd(parts)}`;
+    });
+    return lines.join('\n');
+  }
+
+  function calendarRangeActionBoxText(action) {
+    const count = (action.events || []).length;
+    if (count === 0) return `your calendar's clear for that stretch`;
+    const days = new Set((action.events || []).map(ev => (ev.start || '').slice(0, 10))).size;
+    return `checked your calendar — ${count} event${count === 1 ? '' : 's'} across ${days} day${days === 1 ? '' : 's'}`;
+  }
+
+  // ── delete_event rendering ──────────────────────────────────────────────
+  // Shape mirrors core/calendar_executor.py → delete_event():
+  //   success: {status, kind:"delete", title, start}
+  //   ambiguous: {status:"ambiguous", kind:"delete",
+  //               candidates:[{uid,title,start,calendar,all_day}]}
+  //   otherwise: {status, kind:"delete", message, title?, start?}
+  // Candidates can now span multiple days (the widened today..+7 search
+  // window), so each one must show its DAY, not just a clock time —
+  // formatEventWhen() already does exactly that for create's single-event
+  // display, reused here per-candidate.
+  // Only "ambiguous" gets a plaintext bubble (no delete happened, so no ✓/🔒
+  // glyph fits) — every other status reuses the action bubble.
+  function calendarDeleteActionText(action) {
+    switch (action.status) {
+      case 'success': {
+        const title = (action.title || '').trim();
+        return title ? `deleted “${title}”` : 'deleted that event';
+      }
+      case 'app_disabled':
+        return "you haven't given me calendar permission — turn it on in Settings";
+      case 'os_denied':
+        return 'macOS is blocking me — enable it in System Settings › Privacy & Security';
+      default:   // "not_found", "recurring_unsupported", "error"
+        return action.message || "couldn't delete that event";
+    }
+  }
+
+  // ── move_event rendering ────────────────────────────────────────────────
+  // Shape mirrors core/calendar_executor.py → move_event()/move_by_uid():
+  //   success: {status, kind:"move", title, start, end, all_day}
+  //     (start/end here are the NEW time — formatEventWhen renders it the
+  //     same way create's success does.)
+  //   disambiguate: {status:"disambiguate", kind:"move", candidates, approximate, new_start, new_end?}
+  //   otherwise: {status, kind:"move", message, title?, start?}
+  function calendarMoveActionText(action) {
+    switch (action.status) {
+      case 'success': {
+        const title = (action.title || '').trim();
+        const named = title ? `“${title}”` : 'that';
+        const when  = formatEventWhen(action);   // action.start is the NEW time
+        return when ? `moved ${named} to ${when}` : `moved ${named}`;
+      }
+      case 'app_disabled':
+        return "you haven't given me calendar permission — turn it on in Settings";
+      case 'os_denied':
+        return 'macOS is blocking me — enable it in System Settings › Privacy & Security';
+      default:   // "not_found", "recurring_unsupported", "error"
+        return action.message || "couldn't move that event";
+    }
+  }
+
+  // Plain ISO datetime string -> "8:00 PM Thursday" — used only for the
+  // DESTINATION half of a move confirm prompt (candidateLine already
+  // renders the event's CURRENT time from a candidate object; this is the
+  // counterpart for a raw new_start/new_end string with no such object).
+  function formatDestWhen(isoStr) {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    if (isNaN(d)) return '';
+    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const weekday = d.toLocaleDateString([], { weekday: 'long' });
+    return `${time} ${weekday}`;
+  }
+
+  // Move's confirm prompt names BOTH the event (current time, via
+  // candidateLine) AND the destination time, so a wrong TARGET or a wrong
+  // TIME both get caught before anything is written — delete's
+  // confirmPromptText only ever needs to name the target.
+  function moveConfirmPromptText(c, newStart) {
+    return `move ${candidateLine(c)} to ${formatDestWhen(newStart)}? (yes / no)`;
+  }
+
+  // ── suggest_slots (scheduler) rendering ─────────────────────────────────
+  // Shape mirrors api/routes.py → _suggest_slots_plan() / _plan_result():
+  //   plan:       {status:"plan", kind:"plan", activity, block_min, breakdown, padded, slots, requested, fit}
+  //   plan_empty: {status:"plan_empty", kind:"plan", activity, block_min, breakdown, padded, slots:[], requested, fit:0}
+  //   otherwise:  {status:"app_disabled"|"os_denied"|"error", kind:"plan", activity, message?}
+  // Rendered ENTIRELY from this structured output, never from the persona
+  // reply — the phantom-bug fence: the reply is written by the model
+  // BEFORE this tool runs, so it cannot know the real slots/breakdown
+  // (same reasoning as list; see sendNormalChat's isListOrPlanAction).
+
+  // 90 -> "1.5h", 60 -> "1h", 40 -> "40m", 75 -> "1h15m" — matches how the
+  // breakdown is spoken in the proposal text ("1.5h gym + 40m commute").
+  function formatMinutesShort(m) {
+    if (!m || m <= 0) return '0m';
+    if (m < 60) return `${m}m`;
+    if (m % 60 === 0) return `${m / 60}h`;
+    if (m % 30 === 0) return `${(m / 60).toFixed(1)}h`;
+    return `${Math.floor(m / 60)}h${m % 60}m`;
+  }
+
+  function breakdownText(breakdown, blockMin) {
+    const parts = (breakdown || []).map(b => `${formatMinutesShort(b.minutes)} ${b.label}`);
+    return `${formatMinutesShort(blockMin)} each — ${parts.join(' + ')}`;
+  }
+
+  function formatSlotWhen(slot) {
+    const d = new Date(slot.start);
+    if (isNaN(d)) return '';
+    const day  = d.toLocaleDateString([], { weekday: 'short' });
+    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `${day} ${time}`;
+  }
+
+  function planSlotsText(slots) {
+    return (slots || []).map(formatSlotWhen).join(', ');
+  }
+
+  // Builds pendingPlan from a plan/plan_(re)plan action response. Carries
+  // forward the structured block fields (pad_before_min/pad_after_min/
+  // default_duration_min/tod_pref) and the original request's window/
+  // count/day_exclusions — S4 needs these so a LATER correction can be
+  // sent back to /calendar/correct_plan without the client having to
+  // re-derive anything the original suggest_slots request resolved.
+  // prefDelta stays null until a correction actually applies one (see
+  // tryCorrectPlan) — nothing is staged just from a normal proposal.
+  function buildPendingPlan(action, prefDelta = null) {
+    return {
+      activity:           action.activity,
+      slots:              action.slots || [],
+      breakdown:          action.breakdown,
+      block_min:          action.block_min,
+      padBeforeMin:       action.pad_before_min,
+      padAfterMin:        action.pad_after_min,
+      defaultDurationMin: action.default_duration_min,
+      todPref:            action.tod_pref || null,
+      windowStart:        action.window_start,
+      windowEnd:          action.window_end,
+      count:              action.requested,
+      dayExclusions:      action.day_exclusions || [],
+      prefDelta,
+    };
+  }
+
+  // ALWAYS shows the arithmetic when padded — this is the "phantom fence"
+  // for the block size itself: a user must never see a bare "2.5h" with
+  // no explanation of where the extra time went.
+  function planProposalText(action) {
+    const parts = [];
+    if (action.padded) {
+      parts.push(`I've blocked ${breakdownText(action.breakdown, action.block_min)}.`);
+    }
+    parts.push(`${planSlotsText(action.slots)}.`);
+    if (action.fit < action.requested) {
+      parts.push(`I could only fit ${action.fit} of ${action.requested} this window — want those, or a different window?`);
+    } else {
+      parts.push(`Add them? (yes / no / or say 'not Friday')`);
+    }
+    return parts.join(' ');
+  }
+
+  function planEmptyText(action) {
+    return "couldn't fit any this window — want a different window or time of day?";
+  }
+
+  function calendarPlanActionText(action) {
+    switch (action.status) {
+      case 'app_disabled':
+        return action.message || "you haven't given me calendar permission — turn it on in Settings";
+      case 'os_denied':
+        return 'macOS is blocking me — enable it in System Settings › Privacy & Security';
+      case 'needs_permission':
+        return 'I need Calendar access — grant Full Calendar access in System Settings › Privacy & Security › Calendars';
+      default:   // "error"
+        return action.message || "couldn't put together a plan for that";
+    }
+  }
+
+  // ── plan_added (accept) rendering ───────────────────────────────────────
+  // Shape mirrors api/routes.py → POST /calendar/add_slots:
+  //   {status:"success"|"partial"|"app_disabled"|"os_denied"|"error",
+  //    kind:"plan_added", activity, added:[{start,end}], skipped:[{start,end,reason?}]}
+  function calendarPlanAddedText(action) {
+    switch (action.status) {
+      case 'success': {
+        const n = (action.added || []).length;
+        const activity = (action.activity || '').trim() || 'that';
+        return `Added ${n} ${activity} session${n === 1 ? '' : 's'}.`;
+      }
+      case 'partial': {
+        const addedN = (action.added || []).length;
+        const skipped = action.skipped || [];
+        const when = skipped.length ? formatSlotWhen(skipped[0]) : 'one of them';
+        const extra = skipped.length > 1 ? ` (${skipped.length - 1} more too)` : '';
+        return `Added ${addedN} — ${when} filled up since I suggested it${extra}, want another time for that one?`;
+      }
+      case 'app_disabled':
+        return action.message || "found slots, but I can't add them — turn on Add in Settings";
+      case 'os_denied':
+        return 'macOS is blocking me — enable it in System Settings › Privacy & Security';
+      case 'needs_permission':
+        return 'I need Calendar access — grant Full Calendar access in System Settings › Privacy & Security › Calendars';
+      default:   // "error"
+        return action.message || "couldn't add those";
+    }
+  }
+
+  // ── Delete follow-up disambiguation ─────────────────────────────────────
+  // Mirrors core/calendar_executor.py's matching exactly (normalize / OSA
+  // distance / threshold) so the client can resolve a follow-up reply
+  // ("the 6pm one", a retyped title, an ordinal) against the held
+  // candidate list WITHOUT another model call — see resolveFollowUp below.
+  const GENERIC_EVENT_NOUNS_JS = ['appointments', 'meetings', 'appointment', 'events', 'meeting', 'appts', 'event', 'appt'];
+
+  function normalizeTitleJs(s) {
+    const collapsed = (s || '').trim().toLowerCase().split(/\s+/).join('');
+    for (const noun of GENERIC_EVENT_NOUNS_JS) {
+      if (collapsed.endsWith(noun) && collapsed.length > noun.length) {
+        return collapsed.slice(0, -noun.length);
+      }
+    }
+    return collapsed;
+  }
+
+  function osaDistanceJs(a, b) {
+    const la = a.length, lb = b.length;
+    const d = Array.from({ length: la + 1 }, () => new Array(lb + 1).fill(0));
+    for (let i = 0; i <= la; i++) d[i][0] = i;
+    for (let j = 0; j <= lb; j++) d[0][j] = j;
+    for (let i = 1; i <= la; i++) {
+      for (let j = 1; j <= lb; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+          d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+        }
+      }
+    }
+    return d[la][lb];
+  }
+
+  function approxThresholdJs(normalizedQuery) {
+    const n = normalizedQuery.length;
+    return Math.min(2, Math.max(1, Math.floor(n / 5)));
+  }
+
+  // Loose "6pm" / "6:00pm" / "18:00" parser for the "which one" follow-up
+  // — only ever used as one of several fallback strategies in
+  // resolveFollowUp, and only commits when it uniquely picks one candidate,
+  // so a false-positive number elsewhere in the text can't cause a wrong
+  // delete (the confirm step still catches it).
+  function parseTimeOfDay(t) {
+    const m = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i.exec(t);
+    if (!m) return null;
+    let hr = parseInt(m[1], 10);
+    const ampm = (m[3] || '').toLowerCase();
+    if (ampm === 'pm' && hr < 12) hr += 12;
+    if (ampm === 'am' && hr === 12) hr = 0;
+    if (!ampm && hr > 23) return null;
+    return hr;
+  }
+
+  function candidateLine(c) {
+    const title = (c.title || '').trim() || 'an event';
+    const when  = formatEventWhen(c);   // "Thu, Aug 21 at 6:00 PM" / "Thu, Aug 21, all day"
+    return when ? `${title} — ${when}` : title;
+  }
+
+  function sortByStart(candidates) {
+    return candidates.slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+  }
+
+  // Up to the top 3 candidates, numbered — matches the ordinal picks
+  // resolveFollowUp understands ("1" / "first" / ... up to 3).
+  function topChoicesText(candidates) {
+    const top = sortByStart(candidates).slice(0, 3);
+    const lines = top.map((c, i) => `${i + 1}. ${candidateLine(c)}`);
+    return `which one?\n${lines.join('\n')}`;
+  }
+
+  function confirmPromptText(c) {
+    return `did you mean ${candidateLine(c)}? (yes / no)`;
+  }
+
+  function isYes(text) {
+    return /^\s*(y|yes|yeah|yep|yup|sure|confirm|do it|please|correct|right)\s*[.!]?\s*$/i.test(text);
+  }
+
+  function isNo(text) {
+    return /^\s*(n|no|nope|nah|not that one|wrong|cancel)\s*[.!]?\s*$/i.test(text);
+  }
+
+  // Deterministic follow-up resolution — no model call. Tries, in order:
+  // explicit ordinal/index, earlier/later, an explicit clock time (if it
+  // uniquely picks one candidate), then a retyped/partial title matched by
+  // the SAME normalize+OSA-distance logic the executor uses. Returns a
+  // best-guess candidate or null (caller falls back to re-showing choices).
+  // A guess from here is NEVER auto-deleted — see doDelete's caller, which
+  // always routes through the confirm step first.
+  function resolveFollowUp(text, candidates) {
+    const t = (text || '').toLowerCase().trim();
+    if (!t || !candidates || !candidates.length) return null;
+
+    const ORDINALS = [
+      ['1', 'first', 'the first one', 'one'],
+      ['2', 'second', 'the second one', 'two'],
+      ['3', 'third', 'the third one', 'three'],
+    ];
+    const top3 = sortByStart(candidates).slice(0, 3);
+    for (let i = 0; i < ORDINALS.length && i < top3.length; i++) {
+      if (ORDINALS[i].includes(t)) return top3[i];
+    }
+
+    const sorted = sortByStart(candidates);
+    if (/\b(earlier|earliest)\b/.test(t)) return sorted[0];
+    if (/\b(later|latest|last)\b/.test(t)) return sorted[sorted.length - 1];
+
+    const hr = parseTimeOfDay(t);
+    if (hr !== null) {
+      const matches = candidates.filter(c => {
+        const d = new Date(c.start);
+        return !isNaN(d) && d.getHours() === hr;
+      });
+      if (matches.length === 1) return matches[0];
+    }
+
+    const tNorm = normalizeTitleJs(t);
+    if (tNorm) {
+      const scored = candidates
+        .map(c => ({ c, dist: osaDistanceJs(tNorm, normalizeTitleJs(c.title || '')) }))
+        .sort((a, b) => a.dist - b.dist);
+      const thr = approxThresholdJs(tNorm);
+      if (scored.length && scored[0].dist <= thr && (scored.length === 1 || scored[0].dist < scored[1].dist)) {
+        return scored[0].c;
+      }
+    }
+
+    return null;
+  }
+
+  // Escape hatch: if the text doesn't look like a pick/yes-no/reference at
+  // all, the user has moved on to something else — drop disambiguation and
+  // let it flow through as a normal chat message. Never trap the user in
+  // a "which one?" loop.
+  function looksLikeDisambiguation(text, state) {
+    if (isYes(text) || isNo(text)) return true;
+    return resolveFollowUp(text, state.candidates) !== null;
+  }
+
+  // The ONLY function that actually deletes anything from a follow-up turn
+  // — always called after an explicit yes/no confirm (see sendMessage),
+  // never directly from a guess. Same guarded endpoint as the executor's
+  // own auto-act path; no unguarded delete path exists on the client.
+  async function doDelete(candidate) {
+    disambig = null;
+    setTyping(true);
+    try {
+      const result = await window.electronAPI.deleteByUid(candidate.uid, candidate.calendar);
+      setTyping(false);
+      addActionBubble(calendarDeleteActionText(result), result.status);
+    } catch (e) {
+      setTyping(false);
+      addBubble('(could not reach backend — is main.py running?)', false);
+      console.error(e);
+    }
+  }
+
+  // The ONLY function that actually moves anything from a follow-up turn —
+  // always called after an explicit yes/no confirm on a prompt that named
+  // BOTH the event and the destination (moveConfirmPromptText), never
+  // directly from a guess. newEnd may be null — move_by_uid computes a
+  // duration-preserving end itself when it's omitted, same as move_event's
+  // own auto-act path. Same guarded endpoint as the executor's own
+  // auto-act path; no unguarded move path exists on the client.
+  async function doMove(candidate, newStart, newEnd) {
+    disambig = null;
+    setTyping(true);
+    try {
+      const result = await window.electronAPI.moveByUid(candidate.uid, candidate.calendar, newStart, newEnd || null);
+      setTyping(false);
+      addActionBubble(calendarMoveActionText(result), result.status);
+    } catch (e) {
+      setTyping(false);
+      addBubble('(could not reach backend — is main.py running?)', false);
+      console.error(e);
+    }
+  }
+
+  // ── Scheduler follow-up (accept / reject / drop-slot) ───────────────────
+  const WEEKDAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+  function matchWeekday(text) {
+    const t = (text || '').toLowerCase();
+    for (let i = 0; i < WEEKDAY_NAMES.length; i++) {
+      if (t.includes(WEEKDAY_NAMES[i]) || t.includes(WEEKDAY_NAMES[i].slice(0, 3))) return i;
+    }
+    return null;
+  }
+
+  // "not Friday" / "drop Tuesday" / "drop the Tuesday one" — matches ANY
+  // proposed slot(s) that fall on the named weekday. Deliberately simple
+  // (day-name only, no ordinal/time-of-day disambiguation like delete's
+  // resolveFollowUp) — v1 places at most one slot per day, so a weekday
+  // name alone is already unambiguous against the proposal.
+  function resolveDropDays(text, slots) {
+    const wd = matchWeekday(text);
+    if (wd === null) return [];
+    return (slots || []).filter(s => {
+      const d = new Date(s.start);
+      return !isNaN(d) && d.getDay() === wd;
+    });
+  }
+
+  // Recognizes ONLY yes/no/a day-drop — these are handled entirely
+  // locally (see handlePlanReply), no backend call. Anything else while a
+  // plan is pending is NOT decided here: sendMessage tries it as a
+  // possible padding correction first (tryCorrectPlan, S4 — a genuine
+  // model call, since free text like "I shower at home" can't be
+  // classified reliably client-side) and only falls through to the
+  // escape hatch if the backend itself declines to recognize it.
+  function looksLikePlanReply(text, plan) {
+    if (isYes(text) || isNo(text)) return true;
+    return resolveDropDays(text, plan.slots).length > 0;
+  }
+
+  // The ONLY function that actually adds anything from a plan — always
+  // called after an explicit yes on the proposal (or on a fewer-than-
+  // requested prompt, where "yes" means "add what you found"). Same
+  // guarded, re-verifying endpoint as the batch accept path; no unguarded
+  // add path exists on the client.
+  //
+  // prefDelta (S4) rides along only when this plan came from an accepted
+  // correction — the backend persists it ONLY because this call is
+  // happening, i.e. only on acceptance. What actually gets SENT is the
+  // plan's FULL current pad_before/pad_after/default_duration/tod_pref
+  // (not just whichever field the correction itself touched): two of
+  // those columns are NOT NULL DEFAULT 0 in the schema, so writing only
+  // the touched field on a first-ever insert would silently let Postgres
+  // fill the OTHER one with its 0 default — which then reads back
+  // indistinguishable from a real "skip this" correction the user never
+  // made. Always sending the full resolved state (which pendingPlan
+  // already carries) avoids that trap entirely.
+  async function doAddSlots(plan) {
+    const { activity, slots, prefDelta, padBeforeMin, padAfterMin, defaultDurationMin, todPref } = plan;
+    const prefToSave = prefDelta ? {
+      pad_before_min:       padBeforeMin,
+      pad_after_min:        padAfterMin,
+      default_duration_min: defaultDurationMin,
+      tod_pref:             todPref,
+      echo:                 prefDelta.echo,
+    } : null;
+    pendingPlan = null;
+    setTyping(true);
+    try {
+      const result = await window.electronAPI.addSlots(activity, slots, prefToSave);
+      setTyping(false);
+      let text = calendarPlanAddedText(result);
+      if (result.pref_saved && prefDelta && prefDelta.echo) {
+        text += ` I'll remember: ${prefDelta.echo}`;
+      }
+      addActionBubble(text, result.status);
+    } catch (e) {
+      setTyping(false);
+      addBubble('(could not reach backend — is main.py running?)', false);
+      console.error(e);
+    }
+  }
+
+  // ── Scheduler padding correction (S4) ───────────────────────────────────
+  // Tries to interpret `text` as a correction to the pending plan's
+  // padding/duration/time-of-day. This is the ONE follow-up path that
+  // genuinely needs a backend model call — free text like "I shower at
+  // home" can't be classified reliably by a local regex the way yes/no/
+  // day-drop can. Returns true if the message was consumed (a re-plan, or
+  // a terminal status was rendered) and false if the backend declined to
+  // recognize it as a correction at all — the caller (sendMessage) must
+  // fall through to the normal escape hatch in that case, NOT retry or
+  // guess locally. Calendar-blind on the interpretation side (the backend
+  // only sees the correction text + the current breakdown); the re-plan
+  // itself still goes through the same live window read + placer as any
+  // other proposal.
+  async function tryCorrectPlan(text) {
+    const plan = pendingPlan;
+    setTyping(true);
+    let result;
+    try {
+      result = await window.electronAPI.correctPlan({
+        activity:           plan.activity,
+        correctionText:     text,
+        padBeforeMin:       plan.padBeforeMin,
+        padAfterMin:        plan.padAfterMin,
+        defaultDurationMin: plan.defaultDurationMin,
+        todPref:            plan.todPref,
+        breakdown:          plan.breakdown,
+        windowStart:        plan.windowStart,
+        windowEnd:          plan.windowEnd,
+        count:              plan.count,
+        dayExclusions:      plan.dayExclusions,
+      });
+    } catch (e) {
+      setTyping(false);
+      addBubble('(could not reach backend — is main.py running?)', false);
+      console.error(e);
+      return true;   // consumed — don't also route this text to normal chat
+    }
+    setTyping(false);
+
+    if (!result || result.status === 'not_a_correction') {
+      return false;   // not handled — sendMessage falls through to the escape hatch
+    }
+
+    if (result.status === 'plan') {
+      // No write happened — a re-plan is exactly as pending as the
+      // original proposal was. pref_delta is STAGED, not persisted, until
+      // this new proposal is itself accepted (see doAddSlots).
+      pendingPlan = buildPendingPlan(result, result.pref_delta || null);
+      const echo = result.echo ? `${result.echo} ` : '';
+      addBubble(`${echo}${planProposalText(result)}`, false);
+      return true;
+    }
+    if (result.status === 'plan_empty') {
+      pendingPlan = null;
+      const echo = result.echo ? `${result.echo} ` : '';
+      addBubble(`${echo}${planEmptyText(result)}`, false);
+      return true;
+    }
+    // app_disabled / os_denied / error
+    pendingPlan = null;
+    addActionBubble(calendarPlanActionText(result), result.status);
+    return true;
+  }
+
+  // Resolves one turn of the plan conversation. yes -> add; no -> cancel;
+  // a day-drop removes just that slot (or those slots) and re-prompts
+  // with what's left, never auto-adding the remainder without another
+  // confirm.
+  async function handlePlanReply(text) {
+    if (isYes(text)) { await doAddSlots(pendingPlan); return; }
+    if (isNo(text)) {
+      pendingPlan = null;
+      addBubble('okay, never mind.', false);
+      return;
+    }
+
+    const dropped = resolveDropDays(text, pendingPlan.slots);
+    if (dropped.length > 0) {
+      const droppedStarts = new Set(dropped.map(s => s.start));
+      pendingPlan.slots = pendingPlan.slots.filter(s => !droppedStarts.has(s.start));
+      if (pendingPlan.slots.length === 0) {
+        pendingPlan = null;
+        addBubble('that was the last one — want me to look for different times?', false);
+        return;
+      }
+      addBubble(`okay, dropped that one. ${planSlotsText(pendingPlan.slots)}. Add the rest? (yes / no)`, false);
+      return;
+    }
+
+    // looksLikePlanReply already gated entry on yes/no/a day-drop match,
+    // so this is effectively unreachable — kept as a safe fallback that
+    // re-shows the proposal rather than silently doing nothing.
+    addBubble(`${planSlotsText(pendingPlan.slots)}. Add them? (yes / no / or say 'not Friday')`, false);
   }
 
   function setTyping(show) {
@@ -793,10 +1545,90 @@
     return /\b(screen|display|desktop|monitor|what('s| is) (on|happening|going on|showing)|look at (this|my)|can you see)\b/i.test(text);
   }
 
+  // Entry point for every user-typed message (send button + Enter). When a
+  // delete/move disambiguation OR a scheduler plan is pending, intercepts
+  // and resolves it locally instead of hitting the backend — UNLESS the
+  // message doesn't look like a reply to whichever is pending, in which
+  // case that pending state is dropped and the message flows through as
+  // an ordinary chat turn (the escape hatch — never trap the user in a
+  // "which one?" or "add them?" loop). The two pending states are
+  // mutually exclusive in practice (a new backend turn clears both), so
+  // checking disambig first is only a tie-break, not a priority choice.
+  //
+  // A pending plan gets a THIRD possibility disambig never needed: a
+  // padding correction (S4). Unlike yes/no/day-drop, that can't be
+  // recognized locally — so any message that isn't one of those is tried
+  // as a correction FIRST (a real backend call, calendar-blind on the
+  // interpretation side), and only falls through to the escape hatch
+  // below if the backend itself declines to recognize it as one.
   async function sendMessage(text) {
     if (!text.trim()) return;
-    addBubble(text, true);
     inputEl.value = '';
+
+    if (disambig && looksLikeDisambiguation(text, disambig)) {
+      addBubble(text, true);
+      await handleDisambiguationReply(text);
+      return;
+    }
+    if (pendingPlan && looksLikePlanReply(text, pendingPlan)) {
+      addBubble(text, true);
+      await handlePlanReply(text);
+      return;
+    }
+    if (pendingPlan) {
+      addBubble(text, true);
+      const handled = await tryCorrectPlan(text);
+      if (handled) return;
+      // Not a correction after all — the escape hatch. The user bubble is
+      // already shown above, so sendNormalChat must not add it again.
+      pendingPlan = null;
+      await sendNormalChat(text, { skipUserBubble: true });
+      return;
+    }
+    disambig = null;
+    pendingPlan = null;
+
+    await sendNormalChat(text);
+  }
+
+  // Resolves one turn of the disambiguation conversation. Never deletes or
+  // moves directly from a guess — only isYes() in 'confirm' mode reaches
+  // doDelete()/doMove(); every other path re-prompts (confirm or re-list)
+  // instead. Dispatches on disambig.kind so the SAME state machine (list/
+  // confirm/escape-hatch/resolveFollowUp) serves both actions — only what
+  // happens on a "yes" and how the confirm prompt is worded differs.
+  async function handleDisambiguationReply(text) {
+    const { kind, candidates, newStart, newEnd } = disambig;
+    if (disambig.mode === 'confirm') {
+      if (isYes(text)) {
+        if (kind === 'move') { await doMove(disambig.candidate, newStart, newEnd); }
+        else                 { await doDelete(disambig.candidate); }
+        return;
+      }
+      if (isNo(text)) {
+        disambig = { kind, mode: 'list', candidates, newStart, newEnd };
+        addBubble(topChoicesText(candidates), false);
+        return;
+      }
+      // Not yes/no during confirm — fall through to list-style resolution
+      // below (e.g. they answered with a different pick instead of "no").
+    }
+
+    const best = resolveFollowUp(text, candidates);
+    if (best == null) {
+      disambig = { kind, mode: 'list', candidates, newStart, newEnd };
+      addBubble(topChoicesText(candidates), false);
+      return;
+    }
+    // A guess — ALWAYS confirm before acting, per the one rule that cannot
+    // bend (see delete_event()'s docstring in calendar_executor.py — move
+    // reuses the same invariant).
+    disambig = { kind, mode: 'confirm', candidate: best, candidates, newStart, newEnd };
+    addBubble(kind === 'move' ? moveConfirmPromptText(best, newStart) : confirmPromptText(best), false);
+  }
+
+  async function sendNormalChat(text, { skipUserBubble = false } = {}) {
+    if (!skipUserBubble) addBubble(text, true);
     setTyping(true);
 
     let screenshotB64 = null;
@@ -820,10 +1652,78 @@
         screenshot: screenshotB64,
       });
       setTyping(false);
-      addBubble(data.reply, false);
 
-      if (data.calendar_action) {
-        addActionBubble(calendarActionText(data.calendar_action), data.calendar_action.status);
+      // Backstop: the model writes its reply BEFORE the calendar tool runs
+      // (see core/prompts.py), so for list/plan actions it cannot actually
+      // know the calendar's contents or the computed slots yet — anything
+      // it says about a schedule there would be fabricated. Suppress the
+      // reply bubble whenever a list OR plan action ran (any status) so a
+      // fabricated schedule can never render alongside — or instead of —
+      // the real tool result below (the phantom fence — see the
+      // suggest_slots rendering comment above).
+      const action = data.calendar_action;
+      const isListOrPlanAction = !!action && (action.kind === 'list' || action.kind === 'plan');
+      if (!isListOrPlanAction) {
+        addBubble(data.reply, false);
+      }
+
+      // Every genuinely new backend turn supersedes whatever disambiguation
+      // or pending plan was in flight (if any survived this far,
+      // sendMessage's escape hatch already decided this message wasn't a
+      // reply to it) — reset here, and let the branches below re-populate
+      // whichever one applies.
+      disambig = null;
+      pendingPlan = null;
+
+      if (action) {
+        if (action.kind === 'list' && action.status === 'success' && action.window_start) {
+          // Multi-day RANGE read ("this week", "this weekend", ...) —
+          // window_start is how a range result is told apart from a
+          // single-day one (which carries `date` instead).
+          addActionBubble(calendarRangeActionBoxText(action), action.status);
+          addBubble(calendarRangeSummaryText(action), false);
+        } else if (action.kind === 'list' && action.status === 'success') {
+          addActionBubble(calendarListActionBoxText(action), action.status);
+          addBubble(calendarListSummaryText(action), false);
+        } else if (action.kind === 'delete' && action.status === 'disambiguate') {
+          // No delete happened — never does, from this status alone.
+          const candidates = action.candidates || [];
+          if (action.approximate && candidates.length === 1) {
+            disambig = { kind: 'delete', mode: 'confirm', candidate: candidates[0], candidates };
+            addBubble(confirmPromptText(candidates[0]), false);
+          } else {
+            disambig = { kind: 'delete', mode: 'list', candidates };
+            addBubble(topChoicesText(candidates), false);
+          }
+        } else if (action.kind === 'delete') {
+          addActionBubble(calendarDeleteActionText(action), action.status);
+        } else if (action.kind === 'move' && action.status === 'disambiguate') {
+          // No move happened — never does, from this status alone. The
+          // originally-requested new_start/new_end ride along on the
+          // response so a resolved pick still applies the intended time.
+          const candidates = action.candidates || [];
+          const newStart = action.new_start || null;
+          const newEnd   = action.new_end || null;
+          if (action.approximate && candidates.length === 1) {
+            disambig = { kind: 'move', mode: 'confirm', candidate: candidates[0], candidates, newStart, newEnd };
+            addBubble(moveConfirmPromptText(candidates[0], newStart), false);
+          } else {
+            disambig = { kind: 'move', mode: 'list', candidates, newStart, newEnd };
+            addBubble(topChoicesText(candidates), false);
+          }
+        } else if (action.kind === 'move') {
+          addActionBubble(calendarMoveActionText(action), action.status);
+        } else if (action.kind === 'plan' && action.status === 'plan') {
+          // No calendar write happened — never does, from a plan alone.
+          pendingPlan = buildPendingPlan(action);
+          addBubble(planProposalText(action), false);
+        } else if (action.kind === 'plan' && action.status === 'plan_empty') {
+          addBubble(planEmptyText(action), false);
+        } else if (action.kind === 'plan') {
+          addActionBubble(calendarPlanActionText(action), action.status);
+        } else {
+          addActionBubble(calendarActionText(action), action.status);
+        }
       }
 
       const wm = data.working_memory || {};
@@ -844,7 +1744,13 @@
   inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(inputEl.value); });
 
   // ---------------------------------------------------------------------------
-  // Audio — shared AudioContext + GainNode for all playback
+  // Audio — TWO contexts, deliberately: audioCtx is pinned to 24000 because
+  // that's the sample rate the Gemini Live PCM path (mic in, decodeAndEnqueue
+  // out) speaks — decodeAudioData on the 44.1kHz ElevenLabs MP3 through that
+  // SAME context was silently downsampling it to 24kHz. ttsCtx runs at
+  // whatever rate the hardware defaults to (typically 44100/48000, >= the
+  // MP3's native rate) so ElevenLabs audio decodes and plays at full quality,
+  // never touching the Live voice path's context or gain.
   // ---------------------------------------------------------------------------
   function ensureAudioCtx() {
     if (!audioCtx) {
@@ -857,6 +1763,19 @@
       audioCtx.resume().catch(e => console.warn('[audio] resume blocked (no user gesture?):', e));
     }
     return audioCtx;
+  }
+
+  function ensureTtsCtx() {
+    if (!ttsCtx) {
+      ttsCtx = new AudioContext();   // no forced sampleRate — native hardware rate
+      ttsGainNode = ttsCtx.createGain();
+      ttsGainNode.gain.value = ttsVolume;
+      ttsGainNode.connect(ttsCtx.destination);
+    }
+    if (ttsCtx.state === 'suspended') {
+      ttsCtx.resume().catch(e => console.warn('[tts-audio] resume blocked (no user gesture?):', e));
+    }
+    return ttsCtx;
   }
 
   function enqueueAudio(buf) {
@@ -898,7 +1817,7 @@
   }
 
   async function playTtsAudio(b64) {
-    const ctx = ensureAudioCtx();
+    const ctx = ensureTtsCtx();
     const binary = atob(b64);
     const bytes  = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -916,7 +1835,7 @@
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 256;
     source.connect(analyser);
-    analyser.connect(gainNode);    // ← gain instead of ctx.destination
+    analyser.connect(ttsGainNode);    // ← TTS context's own gain, not the 24kHz path's
     source.start();
 
     const freqData = new Uint8Array(analyser.frequencyBinCount);
@@ -1219,8 +2138,10 @@
   const dndToggle         = document.getElementById('dndToggle');
   const screenWatchToggle = document.getElementById('screenWatchToggle');
 
-  // Volume — persisted in localStorage, applied to GainNode
-  let ttsVolume = parseFloat(localStorage.getItem('pistachio-volume') ?? '80') / 100;
+  // Volume — persisted in localStorage, applied to GainNode. Clamped to
+  // [0, 1] — gain above 1.0 distorts, and the slider itself is capped at
+  // max="100" but a stale/tampered localStorage value could exceed that.
+  let ttsVolume = Math.min(1, Math.max(0, parseFloat(localStorage.getItem('pistachio-volume') ?? '80') / 100));
 
   function _updateSlider(el) {
     const pct = ((el.value - el.min) / (el.max - el.min) * 100).toFixed(1) + '%';
@@ -1237,6 +2158,7 @@
     localStorage.setItem('pistachio-volume', volumeSlider.value);
     _updateSlider(volumeSlider);
     if (gainNode) gainNode.gain.value = ttsVolume;
+    if (ttsGainNode) ttsGainNode.gain.value = ttsVolume;
   });
 
   // Theme — persisted in localStorage, switches data-theme on <html>
@@ -1377,14 +2299,15 @@
 
   // Calendar — master-gates-children: while the master switch is off, no
   // child action can run, so grey out + disable every child row. When
-  // master is on, only LIVE actions (currently just create) actually
-  // become interactive — the "coming soon" rows stay disabled regardless
-  // via their own `disabled` attribute in the markup.
+  // master is on, every row here is a LIVE action (create/list/move/
+  // delete) and becomes interactive. Any future not-yet-shipped action
+  // would set live:false so it stays disabled regardless of the master
+  // switch, via its own `disabled` attribute in the markup.
   const CALENDAR_CHILD_ROWS = [
     { row: 'calCreateRow', input: 'calCreateToggle', live: true },
-    { row: 'calListRow',   input: 'calListToggle',   live: false },
-    { row: 'calMoveRow',   input: 'calMoveToggle',   live: false },
-    { row: 'calDeleteRow', input: 'calDeleteToggle', live: false },
+    { row: 'calListRow',   input: 'calListToggle',   live: true },
+    { row: 'calMoveRow',   input: 'calMoveToggle',   live: true },
+    { row: 'calDeleteRow', input: 'calDeleteToggle', live: true },
   ];
 
   function _applyCalendarMasterGate() {
@@ -1417,6 +2340,128 @@
     _saveCalendarPermissions();
   });
   document.getElementById('calCreateToggle').addEventListener('change', _saveCalendarPermissions);
+  document.getElementById('calListToggle').addEventListener('change', _saveCalendarPermissions);
+  document.getElementById('calMoveToggle').addEventListener('change', _saveCalendarPermissions);
+  document.getElementById('calDeleteToggle').addEventListener('change', _saveCalendarPermissions);
+
+  // ── Learned scheduling preferences (S5) — see/reset valve ────────────────
+  // Touches NO calendar: no permission gate applies to any of this, on
+  // either the client or backend side — only auth/RLS. Rendered ENTIRELY
+  // from the numeric fields (default_duration_min/pad_before_min/
+  // pad_after_min/tod_pref); `notes` isn't even sent back by the endpoint,
+  // so there's no way for this render to depend on it even by accident.
+
+  // 90 -> "1.5h", 40 -> "40m" — same formatting as the scheduler proposal
+  // text (formatMinutesShort, defined above), reused here for consistency.
+  function schedPrefLineText(pref) {
+    const dur = pref.default_duration_min;
+    const before = pref.pad_before_min;
+    const after = pref.pad_after_min;
+    const total = (dur || 0) + (before || 0) + (after || 0);
+
+    const parts = [];
+    if (dur)    parts.push(formatMinutesShort(dur));
+    if (before) parts.push(`${formatMinutesShort(before)} commute`);
+    if (after)  parts.push(`${formatMinutesShort(after)} cleanup`);
+
+    let line = pref.activity || '(unknown)';
+    if (total > 0) {
+      line += ` — ${formatMinutesShort(total)} block`;
+      if (parts.length > 1) line += ` (${parts.join(' + ')})`;
+    } else {
+      line += ` — no learned padding yet`;
+    }
+    if (pref.tod_pref) line += `, ${pref.tod_pref}s`;
+    return line;
+  }
+
+  function renderSchedPrefs(prefs) {
+    const container = document.getElementById('schedPrefsList');
+    container.innerHTML = '';
+
+    if (!prefs || prefs.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'sp-sched-empty';
+      empty.textContent = "Pistachio hasn't learned any scheduling preferences yet.";
+      container.appendChild(empty);
+      return;
+    }
+
+    prefs.forEach(pref => {
+      const row = document.createElement('div');
+      row.className = 'sp-sched-row';
+
+      const title = document.createElement('span');
+      title.className = 'sp-title';
+      title.textContent = schedPrefLineText(pref);
+
+      const forgetBtn = document.createElement('button');
+      forgetBtn.type = 'button';
+      forgetBtn.className = 'sp-forget-btn';
+      forgetBtn.textContent = 'Forget';
+      forgetBtn.addEventListener('click', () => forgetSchedPref(pref.activity));
+
+      row.append(title, forgetBtn);
+      container.appendChild(row);
+    });
+
+    const resetAllBtn = document.createElement('button');
+    resetAllBtn.type = 'button';
+    resetAllBtn.className = 'sp-forget-btn sp-forget-all';
+    resetAllBtn.textContent = 'Reset all learned preferences';
+    resetAllBtn.addEventListener('click', () => forgetAllSchedPrefs(prefs));
+    container.appendChild(resetAllBtn);
+  }
+
+  async function loadSchedPrefs() {
+    const container = document.getElementById('schedPrefsList');
+    container.innerHTML = '';
+    const loading = document.createElement('div');
+    loading.className = 'sp-sched-empty';
+    loading.textContent = 'loading…';
+    container.appendChild(loading);
+    try {
+      const result = await window.electronAPI.getSchedulingPrefs();
+      renderSchedPrefs(result && result.prefs);
+    } catch (err) {
+      console.error('[settings] getSchedulingPrefs failed:', err);
+      container.innerHTML = '';
+      const errEl = document.createElement('div');
+      errEl.className = 'sp-sched-empty';
+      errEl.textContent = "couldn't load learned preferences right now.";
+      container.appendChild(errEl);
+    }
+  }
+
+  // Confirm doubles as the inspect — it names exactly what's being wiped,
+  // per-activity and for "reset all" alike, before anything is deleted.
+  async function forgetSchedPref(activity) {
+    if (!window.confirm(`Forget ${activity} scheduling preferences?`)) return;
+    try {
+      await window.electronAPI.resetSchedulingPrefs(activity);
+    } catch (err) {
+      console.error('[settings] resetSchedulingPrefs failed:', err);
+    }
+    await loadSchedPrefs();
+  }
+
+  async function forgetAllSchedPrefs(prefs) {
+    const names = (prefs || []).map(p => p.activity).join(', ');
+    if (!window.confirm(`This will clear: ${names}. Clear all?`)) return;
+    try {
+      await window.electronAPI.resetSchedulingPrefs();
+    } catch (err) {
+      console.error('[settings] resetSchedulingPrefs (all) failed:', err);
+    }
+    await loadSchedPrefs();
+  }
+
+  // Lazy: only fetches when the disclosure is actually opened, not on
+  // every settings-popup open — 'toggle' fires on BOTH open and close, so
+  // only act when it just opened.
+  document.getElementById('schedPrefsDetails').addEventListener('toggle', (e) => {
+    if (e.target.open) loadSchedPrefs();
+  });
 
   // Logout
   logoutBtn.addEventListener('click', async () => {

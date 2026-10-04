@@ -267,6 +267,118 @@ async def fetch_calendar_permissions(user_id: str) -> dict:
     return await _run(_)
 
 
+
+# ---------------------------------------------------------------------------
+# scheduling_preferences
+#
+# THE notes WALL: `notes` (and this table generally) is read ONLY by the
+# calendar-blind activity-inference step to phrase a scheduling proposal's
+# breakdown, and by the see/reset valve. It must NEVER be selected into,
+# concatenated onto, or otherwise routed toward the Stage-0 persona prompt
+# (core/prompts.py build_dynamic_prompt) — that function has no import of
+# or call into this module, and no caller of the readers below may pass
+# their result toward it. If a caller is ever tempted to surface `notes`
+# outside the scheduling proposal/breakdown path, generate the copy from
+# the numeric fields instead and leave `notes` unused. See the migration
+# (supabase/migrations/20260919120000_add_scheduling_preferences.sql) for
+# the same wall stated at the schema level.
+# ---------------------------------------------------------------------------
+
+_SCHEDULING_PREF_COLUMNS = (
+    "activity,default_duration_min,pad_before_min,pad_after_min,tod_pref,notes,updated_at"
+)
+
+
+async def fetch_scheduling_preference(user_id: str, activity: str) -> dict | None:
+    """Return the stored scheduling preference row for one normalized
+    activity key ("gym", not "Gym" or "the gym"), or None on no row or any
+    DB error — never raises. A miss is indistinguishable from "no
+    preference learned yet" by design: the inference step falls back to
+    its own defaults either way."""
+    def _():
+        try:
+            rows = (
+                _sb().table("scheduling_preferences")
+                .select(_SCHEDULING_PREF_COLUMNS)
+                .eq("user_id", user_id)
+                .eq("activity", activity)
+                .execute()
+                .data
+            )
+            return rows[0] if rows else None
+        except Exception:
+            log.warning("fetch_scheduling_preference failed for user=%s activity=%r — treating as no preference",
+                        user_id, activity)
+            return None
+    return await _run(_)
+
+
+async def list_scheduling_preferences(user_id: str) -> list[dict]:
+    """Return every stored scheduling preference for a user, ordered by
+    activity — the "what have you learned" valve (Part E). Empty list on
+    no rows or any DB error, never raises."""
+    def _():
+        try:
+            return (
+                _sb().table("scheduling_preferences")
+                .select(_SCHEDULING_PREF_COLUMNS)
+                .eq("user_id", user_id)
+                .order("activity")
+                .execute()
+                .data
+            )
+        except Exception:
+            log.warning("list_scheduling_preferences failed for user=%s — defaulting to empty", user_id)
+            return []
+    return await _run(_)
+
+
+async def upsert_scheduling_preference(user_id: str, activity: str, fields: dict) -> bool:
+    """Write a learned correction. Called ONLY on a confirmed accept (see
+    POST /calendar/add_slots) — never speculatively, never before the user
+    has actually agreed to the corrected plan. `fields` may include any of
+    default_duration_min/pad_before_min/pad_after_min/tod_pref/notes;
+    columns not present in `fields` are left at their existing/default
+    values via upsert's merge-on-conflict semantics (not overwritten to
+    NULL). Returns True on success, False on any DB error — never raises,
+    so a failed write degrades to "the correction didn't stick" rather
+    than breaking the turn that already added the calendar events."""
+    def _():
+        try:
+            _sb().table("scheduling_preferences").upsert(
+                {
+                    "user_id": user_id,
+                    "activity": activity,
+                    **fields,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                },
+                on_conflict="user_id,activity",
+            ).execute()
+            return True
+        except Exception:
+            log.warning("upsert_scheduling_preference failed for user=%s activity=%r", user_id, activity)
+            return False
+    return await _run(_)
+
+
+async def delete_scheduling_preference(user_id: str, activity: str | None = None) -> bool:
+    """Reset one learned preference (`activity` given) or ALL of them
+    (`activity=None`) — the reset half of the see/reset valve (Part E).
+    Returns True on success, False on any DB error — never raises."""
+    def _():
+        try:
+            q = _sb().table("scheduling_preferences").delete().eq("user_id", user_id)
+            if activity is not None:
+                q = q.eq("activity", activity)
+            q.execute()
+            return True
+        except Exception:
+            log.warning("delete_scheduling_preference failed for user=%s activity=%r", user_id, activity)
+            return False
+    return await _run(_)
+
+
+
 async def fetch_username(user_id: str) -> str:
     """Return the email local-part for a user as a username (matches /chat prefix convention)."""
     def _():

@@ -8,6 +8,7 @@ Terminal 1 — Python backend (FastAPI + Gemini Live relay, both in one process)
       cd "C:\Users\andre\Dev\Real Waifu copy"
       .venv\Scripts\Activate.ps1
       python main.py
+      
     (First time only — create the venv and install deps first:
       python -m venv .venv
       .venv\Scripts\Activate.ps1

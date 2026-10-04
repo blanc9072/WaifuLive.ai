@@ -526,6 +526,134 @@ ipcMain.handle('api:chat', async (_, { username, message, screenshot }) => {
   return data;
 });
 
+// Follow-up disambiguation delete — resolves a client-held "the 6pm one" /
+// "yes, delete it" against a prior ambiguous/approximate delete_event()
+// result. Same token-injection pattern as api:chat; the backend runs its
+// own guarded delete_by_uid() (recurrence refusal, re-verify, confirm) and
+// its own fresh permission check, same as every other calendar action.
+ipcMain.handle('api:deleteByUid', async (_, { uid, calendar }) => {
+  const token = await getValidToken();
+  const res = await fetch(`${API_BASE}/calendar/delete_by_uid`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ uid, calendar }),
+  });
+  const bodyText = await res.text();
+  if (!res.ok) throw new Error(`Backend ${res.status}: ${bodyText.slice(0, 200)}`);
+  return JSON.parse(bodyText);
+});
+
+// Follow-up disambiguation move — resolves a client-held "the 6pm one" /
+// "yes, move it" against a prior ambiguous/approximate move_event() result,
+// carrying the originally-requested new_start/new_end alongside the chosen
+// uid. Same token-injection pattern as api:deleteByUid; the backend runs
+// its own guarded move_by_uid() (recurrence refusal, re-verify, safe-
+// ordered write, confirm read-back) and its own fresh permission check.
+ipcMain.handle('api:moveByUid', async (_, { uid, calendar, newStart, newEnd }) => {
+  const token = await getValidToken();
+  const res = await fetch(`${API_BASE}/calendar/move_by_uid`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ uid, calendar, new_start: newStart, new_end: newEnd || null }),
+  });
+  const bodyText = await res.text();
+  if (!res.ok) throw new Error(`Backend ${res.status}: ${bodyText.slice(0, 200)}`);
+  return JSON.parse(bodyText);
+});
+
+// Scheduler accept — adds a batch of proposed slots the user said yes to.
+// Same token-injection pattern as api:deleteByUid/api:moveByUid; the
+// backend re-verifies every slot against a FRESH calendar read before
+// creating anything, so a slot that got filled after the proposal was
+// shown is skipped rather than clobbered (see POST /calendar/add_slots).
+// prefDelta (S4) is optional — only present when the accepted plan was a
+// corrected one; the backend persists it ONLY on this accept call, never
+// speculatively.
+ipcMain.handle('api:addSlots', async (_, { activity, slots, prefDelta }) => {
+  const token = await getValidToken();
+  const res = await fetch(`${API_BASE}/calendar/add_slots`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ activity, slots, pref_delta: prefDelta || null }),
+  });
+  const bodyText = await res.text();
+  if (!res.ok) throw new Error(`Backend ${res.status}: ${bodyText.slice(0, 200)}`);
+  return JSON.parse(bodyText);
+});
+
+// Scheduler correction (S4) — interprets a padding/duration/time-of-day
+// correction to a pending proposal and returns a re-plan. Never writes
+// anything (that only happens via api:addSlots's pref_delta above). The
+// client calls this speculatively for any message that isn't a
+// recognized yes/no/day-drop while a plan is pending; a
+// status:"not_a_correction" response means the backend didn't recognize
+// it either, and the client falls through to its normal escape hatch.
+ipcMain.handle('api:correctPlan', async (_, payload) => {
+  const token = await getValidToken();
+  const res = await fetch(`${API_BASE}/calendar/correct_plan`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      activity:              payload.activity,
+      correction_text:       payload.correctionText,
+      pad_before_min:        payload.padBeforeMin,
+      pad_after_min:         payload.padAfterMin,
+      default_duration_min:  payload.defaultDurationMin,
+      tod_pref:              payload.todPref || null,
+      breakdown:             payload.breakdown,
+      window_start:          payload.windowStart,
+      window_end:            payload.windowEnd,
+      count:                 payload.count,
+      day_exclusions:        payload.dayExclusions || [],
+    }),
+  });
+  const bodyText = await res.text();
+  if (!res.ok) throw new Error(`Backend ${res.status}: ${bodyText.slice(0, 200)}`);
+  return JSON.parse(bodyText);
+});
+
+// Scheduling preferences see/reset valve (S5) — touches NO calendar, so
+// unlike every other calendar IPC handler above these two carry no
+// calendar-permission implication; the backend gates on the verified
+// token's user_id only (RLS/auth, not fetch_calendar_permissions).
+ipcMain.handle('api:getSchedulingPrefs', async () => {
+  const token = await getValidToken();
+  const res = await fetch(`${API_BASE}/scheduling_prefs`, {
+    method:  'GET',
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  const bodyText = await res.text();
+  if (!res.ok) throw new Error(`Backend ${res.status}: ${bodyText.slice(0, 200)}`);
+  return JSON.parse(bodyText);
+});
+
+ipcMain.handle('api:resetSchedulingPrefs', async (_, { activity }) => {
+  const token = await getValidToken();
+  const res = await fetch(`${API_BASE}/scheduling_prefs/reset`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ activity: activity || null }),
+  });
+  const bodyText = await res.text();
+  if (!res.ok) throw new Error(`Backend ${res.status}: ${bodyText.slice(0, 200)}`);
+  return JSON.parse(bodyText);
+});
+
 async function ipcNudgeCall(payload) {
   const token = await getValidToken();
   const res = await fetch(`${API_BASE}/nudge`, {
