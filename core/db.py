@@ -389,3 +389,56 @@ async def fetch_username(user_id: str) -> str:
         except Exception:
             return "user"
     return await _run(_)
+
+
+# ---------------------------------------------------------------------------
+# google_calendar_credentials (G2a) — a standing refresh token per user for
+# core/calendar_google.py's read provider. BACKEND-ONLY: the table has RLS
+# enabled with no policies at all (see the migration), so only this
+# service-role client can ever read/write it — never expose these two
+# functions' results to a client-facing endpoint directly.
+# ---------------------------------------------------------------------------
+
+async def fetch_google_refresh_token(user_id: str) -> str | None:
+    """The user's stored Google OAuth refresh token, or None if they've
+    never connected (or the row/table read fails) — never raises. None
+    is the caller's signal to surface calendar_google's "needs_connection"
+    status, not an empty calendar."""
+    def _():
+        try:
+            rows = (
+                _sb().table("google_calendar_credentials")
+                .select("refresh_token")
+                .eq("user_id", user_id)
+                .execute()
+                .data
+            )
+            return rows[0]["refresh_token"] if rows else None
+        except Exception:
+            log.warning("fetch_google_refresh_token failed for user=%s", user_id)
+            return None
+    return await _run(_)
+
+
+async def upsert_google_credentials(user_id: str, refresh_token: str, scopes: str) -> bool:
+    """Store (or replace) a user's Google refresh token after a successful
+    OAuth consent. Returns True on success, False on any DB error — never
+    raises; connected_at is left at its existing value on repeat upserts
+    only if the caller omits it, but a RE-connect is a genuine new grant,
+    so this always stamps connected_at to now()."""
+    def _():
+        try:
+            _sb().table("google_calendar_credentials").upsert(
+                {
+                    "user_id": user_id,
+                    "refresh_token": refresh_token,
+                    "scopes": scopes,
+                    "connected_at": datetime.now(timezone.utc).isoformat(),
+                },
+                on_conflict="user_id",
+            ).execute()
+            return True
+        except Exception:
+            log.warning("upsert_google_credentials failed for user=%s", user_id)
+            return False
+    return await _run(_)
